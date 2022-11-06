@@ -71,6 +71,7 @@ def main():
     bigram = BigramModel()
     bigram.fit(["Train the bigram language\ncompute the two sentences\n"])
     print(bigram.predict("Train the"))
+    # TODO: check if START should be counted in the denominator when calculating MLE in Bigram
 
 
 if __name__ == "__main__":
