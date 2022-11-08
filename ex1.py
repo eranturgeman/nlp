@@ -5,9 +5,18 @@ import pickle
 import spacy
 from datasets import load_dataset
 
+BIGRAM_MODEL_SAV = "/mnt/c/Users/dor/Projects/NLP/nlp/bigram_model.sav"
+
+UNIGRAM_MODEL_PATH = "/mnt/c/Users/dor/Projects/NLP/nlp/unigram_model.sav"
+
 nlp = spacy.load("en_core_web_sm")
 dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
 Q2_SENTENCE = 'I have a house in'
+Q3_SENTENCE_A = 'Brad Pitt was born in Oklahoma'
+Q3_SENTENCE_B = 'The actor was born in USA'
+LAMBDA_UNIGRAM = 1/3
+LAMBDA_BIGRAM = 2/3
+
 
 class UnigramModel:
     def __init__(self):
@@ -28,14 +37,16 @@ class UnigramModel:
             if (token.is_alpha):
                 p *= (self.freq[token.lemma_] / self.count)
 
-        return p
-        # return math.log(p, 10) if p != 0 else 0
+        return math.log(p, 10)
+
+def default():
+    return defaultdict(int)
 
 class BigramModel:
     def __init__(self):
         self.count = 0
         self.freq_single = defaultdict(int)
-        self.freq_pairs = defaultdict(lambda: defaultdict(int))
+        self.freq_pairs = defaultdict(default)
 
     def fit(self, texts):
         for text in texts:
@@ -61,12 +72,42 @@ class BigramModel:
                 p *= (self.freq_pairs[prev][token.lemma_] / m)
                 prev = token.lemma_
 
-        return p
-        # return math.log(p, 10) if p != 0 else 0
+        return math.log(p, 10) if p != 0 else -math.inf
 
+    def computePerplexity(self, testSet):
+        M = 0
+        p = 0
+
+        for sentence in testSet.split("\n"):
+            p += self.predict(sentence)
+            for token in nlp(sentence):
+                if(token.is_alpha):
+                    M += 1
+
+        return math.exp(-(p/M))
+
+class LerpModel:
+    def __init__(self, unigram, bigram):
+        self.unigram = unigram
+        self.bigram = bigram
+
+
+    def predict(self, sentence):
+        return (LAMBDA_UNIGRAM * self.unigram.predict(sentence)) + (LAMBDA_BIGRAM * self.bigram.predict(sentence))
+    def computePerplexity(self, testSet):
+        M = 0
+        p = 0
+
+        for sentence in testSet.split("\n"):
+            p += self.predict(sentence)
+            for token in nlp(sentence):
+                if(token.is_alpha):
+                    M += 1
+
+        return math.exp(-(p/M))
 
 def q2(sentence, lm):
-    last_word = nlp(sentence)[-1]
+    last_word = str(nlp(sentence)[-1])
 
     max_word = ""
     max_count = 0
@@ -76,6 +117,25 @@ def q2(sentence, lm):
             max_word = word
 
     return max_word
+
+def q3_a(lm):
+    p = lm.predict(Q3_SENTENCE_A)
+    print(f"The probability of the sentence: {Q3_SENTENCE_A} is {p}.")
+    p = lm.predict(Q3_SENTENCE_B)
+    print(f"The probability of the sentence: {Q3_SENTENCE_B} is {p}.")
+
+def q3_b(lm):
+    perp = lm.computePerplexity(Q3_SENTENCE_A + "\n" + Q3_SENTENCE_B)
+    print(f"The perplexity is: {perp}")
+
+def q4(lm):
+    p = lm.predict(Q3_SENTENCE_A)
+    print(f"The probability of the sentence: {Q3_SENTENCE_A} is {p}.\n")
+    p = lm.predict(Q3_SENTENCE_B)
+    print(f"The probability of the sentence: {Q3_SENTENCE_B} is {p}.\n")
+
+    perp = lm.computePerplexity(Q3_SENTENCE_A + "\n" + Q3_SENTENCE_B)
+    print(f"The perplexity is: {perp}")
 
 def main(train=False):
     # unigram = UnigramModel()
@@ -92,29 +152,37 @@ def main(train=False):
         unigram.fit(dataset["text"])
         print("Unigram training completed.")
 
-        with open("/mnt/c/Users/dor/Projects/NLP/nlp/unigram_model.sav", "wb") as fh:
+        with open(UNIGRAM_MODEL_PATH, "wb") as fh:
             pickle.dump(unigram, fh)
 
         bigram = BigramModel()
         bigram.fit(dataset["text"])
         print("Bigram training completed.")
 
-        with open("/mnt/c/Users/dor/Projects/NLP/nlp/bigram_model.sav", "wb") as fh:
+        with open(BIGRAM_MODEL_SAV, "wb") as fh:
             pickle.dump(bigram, fh)
 
     else:
         print("Loading models...")
-        with open("/mnt/c/Users/dor/Projects/NLP/nlp/unigram_model.sav", "wb") as fh:
-            unigram = pickle.load(fh)
+        # with open(UNIGRAM_MODEL_PATH, "rb") as fh:
+        #     unigram = pickle.load(fh)
 
-        with open("/mnt/c/Users/dor/Projects/NLP/nlp/bigram_model.sav", "wb") as fh:
+        with open(BIGRAM_MODEL_SAV, "rb") as fh:
             bigram = pickle.load(fh)
 
     print("Q2:")
-    print(q2(Q2_SENTENCE, bigram))
+    print(f"The most probable word continuation for the sentence: '{Q2_SENTENCE}' is '{q2(Q2_SENTENCE, bigram)}'")
 
-    print("Q3:")
+    print("Q3 A:")
+    q3_a(bigram)
+
+    print("Q3 B:")
+    q3_b(bigram)
+
+    lerp = LerpModel(unigram, bigram)
+    print("Q4:")
+    q4(lerp)
 
 
 if __name__ == "__main__":
-    main(True)
+    main(False)
