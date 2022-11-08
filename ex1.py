@@ -37,7 +37,7 @@ class UnigramModel:
             if (token.is_alpha):
                 p *= (self.freq[token.lemma_] / self.count)
 
-        return math.log(p, 10)
+        return math.log(p) if p != 0 else -math.inf
 
 def default():
     return defaultdict(int)
@@ -72,7 +72,7 @@ class BigramModel:
                 p *= (self.freq_pairs[prev][token.lemma_] / m)
                 prev = token.lemma_
 
-        return math.log(p, 10) if p != 0 else -math.inf
+        return math.log(p) if p != 0 else -math.inf
 
     def computePerplexity(self, testSet):
         M = 0
@@ -90,7 +90,6 @@ class LerpModel:
     def __init__(self, unigram, bigram):
         self.unigram = unigram
         self.bigram = bigram
-
 
     def predict(self, sentence):
         return (LAMBDA_UNIGRAM * self.unigram.predict(sentence)) + (LAMBDA_BIGRAM * self.bigram.predict(sentence))
@@ -130,22 +129,14 @@ def q3_b(lm):
 
 def q4(lm):
     p = lm.predict(Q3_SENTENCE_A)
-    print(f"The probability of the sentence: {Q3_SENTENCE_A} is {p}.\n")
+    print(f"The probability of the sentence: {Q3_SENTENCE_A} is {p}.")
     p = lm.predict(Q3_SENTENCE_B)
-    print(f"The probability of the sentence: {Q3_SENTENCE_B} is {p}.\n")
+    print(f"The probability of the sentence: {Q3_SENTENCE_B} is {p}.")
 
     perp = lm.computePerplexity(Q3_SENTENCE_A + "\n" + Q3_SENTENCE_B)
     print(f"The perplexity is: {perp}")
 
 def main(train=False):
-    # unigram = UnigramModel()
-    # unigram.fit(["Train maximum-likelihood unigram and bigram language\ncompute the probability of the following two sentences\n"])
-    # unigram.fit(dataset["text"])
-    # print(unigram.predict("language language"))
-    #
-    # bigram = BigramModel()
-    # bigram.fit(["a b c d\na a b c\nc b d e\ne f f g"])
-    # print(bigram.predict("a b c")) #
     if (train):
         print("Q1:")
         unigram = UnigramModel()
@@ -164,8 +155,8 @@ def main(train=False):
 
     else:
         print("Loading models...")
-        # with open(UNIGRAM_MODEL_PATH, "rb") as fh:
-        #     unigram = pickle.load(fh)
+        with open(UNIGRAM_MODEL_PATH, "rb") as fh:
+            unigram = pickle.load(fh)
 
         with open(BIGRAM_MODEL_SAV, "rb") as fh:
             bigram = pickle.load(fh)
@@ -185,4 +176,8 @@ def main(train=False):
 
 
 if __name__ == "__main__":
-    main(False)
+    main(True)
+    # unigram = UnigramModel()
+    # unigram.fit("a b c d\ne f a b\na c d f\n")
+    # p = unigram.predict("a d")
+    # print(p)
