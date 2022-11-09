@@ -118,7 +118,7 @@ class LerpModel:
 
                 prev = token.lemma_
 
-                p += (1/3) * pUnigram + (2/3) * pBigram
+                p += LAMBDA_UNIGRAM * pUnigram + LAMBDA_BIGRAM * pBigram
 
         return p
 
