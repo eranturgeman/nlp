@@ -32,12 +32,15 @@ class UnigramModel:
                     self.freq[token.lemma_] += 1
 
     def predict(self, sentence):
-        p = 1
+        #p = 1 todo delete after check
+        p = 0
         for token in nlp(sentence):
             if (token.is_alpha):
-                p *= (self.freq[token.lemma_] / self.count)
+                p += math.log(self.freq[token.lemma_] / self.count)
+                # p *= (self.freq[token.lemma_] / self.count) #todo delete after checks
 
-        return math.log(p) if p != 0 else -math.inf
+        return p
+        #return math.log(p) if p != 0 else -math.inf todo delete after check
 
 def default():
     return defaultdict(int)
@@ -61,18 +64,19 @@ class BigramModel:
                         prev = token.lemma_
 
     def predict(self, sentence):
-        p = 1
+        #p = 1 todo delete after check
+        p = 0
         prev = "START"
         for token in nlp(sentence):
             if (token.is_alpha):
                 m = self.freq_single[prev]
                 if m == 0:
                     return 0
-
-                p *= (self.freq_pairs[prev][token.lemma_] / m)
+                p += math.log(self.freq_pairs[prev][token.lemma_] / m)
+                #p *= (self.freq_pairs[prev][token.lemma_] / m) todo delete after check
                 prev = token.lemma_
-
-        return math.log(p) if p != 0 else -math.inf
+        return p
+        #return math.log(p) if p != 0 else -math.inf todo delete after check
 
     def computePerplexity(self, testSet):
         M = 0
@@ -91,8 +95,35 @@ class LerpModel:
         self.unigram = unigram
         self.bigram = bigram
 
+        self.unigramCount = unigram.count
+        self.unigramFreq = unigram.freq
+
+        self.bigramCount = bigram.count
+        self.bigramFreqSingle = bigram.freq_single
+        self.bigramFreqPairs = bigram.freq_pairs
+
     def predict(self, sentence):
-        return (LAMBDA_UNIGRAM * self.unigram.predict(sentence)) + (LAMBDA_BIGRAM * self.bigram.predict(sentence))
+        p = 0
+        prev = "START"
+
+        for token in nlp(sentence):
+            if (token.is_alpha):
+                pUnigram = math.log(self.unigramFreq[token.lemma_] / self.unigramCount)
+
+                firstWordAppearances = self.bigramFreqSingle[prev]
+                if firstWordAppearances == 0:
+                    pBigram = 0
+                else:
+                    pBigram = math.log(self.freq_pairs[prev][token.lemma_] / firstWordAppearances)
+
+                prev = token.lemma_
+
+                p += (1/3) * pUnigram + (2/3) * pBigram
+
+        return p
+
+        #return (LAMBDA_UNIGRAM * self.unigram.predict(sentence)) + (LAMBDA_BIGRAM * self.bigram.predict(sentence))
+
     def computePerplexity(self, testSet):
         M = 0
         p = 0
