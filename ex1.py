@@ -6,7 +6,6 @@ import spacy
 from datasets import load_dataset
 
 BIGRAM_MODEL_SAV = "/mnt/c/Users/dor/Projects/NLP/nlp/bigram_model.sav"
-
 UNIGRAM_MODEL_PATH = "/mnt/c/Users/dor/Projects/NLP/nlp/unigram_model.sav"
 
 nlp = spacy.load("en_core_web_sm")
@@ -32,15 +31,15 @@ class UnigramModel:
                     self.freq[token.lemma_] += 1
 
     def predict(self, sentence):
-        #p = 1 todo delete after check
         p = 0
         for token in nlp(sentence):
             if (token.is_alpha):
-                p += math.log(self.freq[token.lemma_] / self.count)
-                # p *= (self.freq[token.lemma_] / self.count) #todo delete after checks
+                n = self.freq[token.lemma_]
+                if n == 0:
+                    return -math.inf
+                p += math.log(n / self.count)
 
         return p
-        #return math.log(p) if p != 0 else -math.inf todo delete after check
 
 def default():
     return defaultdict(int)
@@ -64,19 +63,18 @@ class BigramModel:
                         prev = token.lemma_
 
     def predict(self, sentence):
-        #p = 1 todo delete after check
         p = 0
         prev = "START"
         for token in nlp(sentence):
             if (token.is_alpha):
                 m = self.freq_single[prev]
-                if m == 0:
-                    return 0
-                p += math.log(self.freq_pairs[prev][token.lemma_] / m)
-                #p *= (self.freq_pairs[prev][token.lemma_] / m) todo delete after check
+                n = self.freq_pairs[prev][token.lemma_]
+                if m == 0 or n == 0:
+                    return -math.inf
+                p += math.log(n / m)
                 prev = token.lemma_
+
         return p
-        #return math.log(p) if p != 0 else -math.inf todo delete after check
 
     def computePerplexity(self, testSet):
         M = 0
@@ -108,17 +106,19 @@ class LerpModel:
 
         for token in nlp(sentence):
             if (token.is_alpha):
-                pUnigram = math.log(self.unigramFreq[token.lemma_] / self.unigramCount)
+                pUnigram = self.unigramFreq[token.lemma_] / self.unigramCount
 
-                firstWordAppearances = self.bigramFreqSingle[prev]
-                if firstWordAppearances == 0:
+                m = self.bigramFreqSingle[prev]
+                n = self.bigramFreqPairs[prev][token.lemma_]
+                if m == 0 or n == 0:
                     pBigram = 0
                 else:
-                    pBigram = math.log(self.freq_pairs[prev][token.lemma_] / firstWordAppearances)
+                    pBigram = n / m
 
                 prev = token.lemma_
 
-                p += LAMBDA_UNIGRAM * pUnigram + LAMBDA_BIGRAM * pBigram
+                s = LAMBDA_UNIGRAM * pUnigram + LAMBDA_BIGRAM * pBigram
+                p += math.log(s) if s != 0 else -math.inf
 
         return p
 
@@ -207,7 +207,7 @@ def main(train=False):
 
 
 if __name__ == "__main__":
-    main(True)
+    main(False)
     # unigram = UnigramModel()
     # unigram.fit("a b c d\ne f a b\na c d f\n")
     # p = unigram.predict("a d")
