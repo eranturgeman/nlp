@@ -8,7 +8,7 @@ TEST_SET_PROPORTION = 0.1
 PROB_FOR_UNKNOWN = -float("inf")
 UNKNOWN_TAG = "NN"
 STARTING_TAG = "*"
-ENDI
+END_TAG = "STOP"
 
 
 class BasicModel:
@@ -94,6 +94,8 @@ class BigramHMM:
                 self.categories_count[prev] += 1
                 self.categories_pairs_count[prev][tag] += 1
                 prev = tag
+            self.categories_count[prev] += 1
+            self.categories_pairs_count[prev][END_TAG] += 1
 
     def predict_emission(self, word, tag):
         total_tag_count = sum(count for _, count in self.tags_words_count[tag])
@@ -134,7 +136,7 @@ class BigramHMM:
             prev_pi = pi
 
         # Find the last category
-        prev_pi
+        for cat_idx, can_val in enumerate(pi[n - 1])
 
 
 
