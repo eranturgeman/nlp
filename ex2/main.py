@@ -9,28 +9,26 @@ PROB_FOR_UNKNOWN = -float("inf")
 UNKNOWN_TAG = "NN"
 STARTING_TAG = "*"
 END_TAG = "STOP"
-VITERBI_UNKNOWN = ""
+VITERBI_UNKNOWN = "VUK"
+
+def default():
+    return defaultdict(int)
 
 
 class BasicModel:
     def __init__(self, train_set, test_set):
         self.train_set = train_set
         self.test_set = test_set
-        self.word_tags = defaultdict(self.default)
-        self.max_probability = dict()
+        self.word_tags = defaultdict(default)
 
     def fit(self):
         for sentence in self.train_set:
             for word, tag in sentence:
                 self.word_tags[word][tag] += 1
 
-        for word in self.word_tags.keys():
-            self.predict_best_tag_probability(word)
-
     def predict_best_tag_probability(self, word):
-        if word not in self.max_probability:
-            self.max_probability[word] = (PROB_FOR_UNKNOWN, UNKNOWN_TAG) # todo check if leaving -inf in unknown probabilities
-            return self.max_probability
+        if word not in self.word_tags:
+            return PROB_FOR_UNKNOWN, UNKNOWN_TAG # todo check if leaving -inf in unknown probabilities
 
         categories = self.word_tags[word]
 
@@ -43,36 +41,49 @@ class BasicModel:
                 max_count = count
                 max_category = category
 
-        self.max_probability[word] = (max_count / total_count, max_category)
-
-        return self.max_probability[word]
+        return max_count / total_count, max_category
 
     def compute_error_rate(self):
         total_words = 0
         correct_tag_words = 0
+        known_words = 0
+        known_words_correct_tag = 0
+        unknown_words = 0
+        unknown_words_correct_tag = 0
+
         for sentence in self.test_set:
             for word, tag in sentence:
                 total_words += 1
+
+                if word in self.word_tags:
+                    known_words += 1
+                else:
+                    unknown_words += 1
+
                 if self.predict_best_tag_probability(word)[1] == tag:
                     correct_tag_words += 1
 
-        accuracy = correct_tag_words / total_words
-        return 1 - accuracy
+                    if word in self.word_tags:
+                        known_words_correct_tag += 1
+                    else:
+                        unknown_words_correct_tag += 1
 
-    @staticmethod
-    def default():
-        return defaultdict(int)
+        total_words_accuracy = correct_tag_words / total_words
+        known_words_accuracy = known_words_correct_tag / known_words
+        unknown_words_accuracy = unknown_words_correct_tag / unknown_words
+        return 1 - total_words_accuracy, 1 - known_words_accuracy, 1 - unknown_words_accuracy #total error, know error, unknown error
+
 
 class BigramHMM:
-    def __init__(self):
+    def __init__(self, train_set, test_set):
         self.train_set = train_set
         self.test_set = test_set
-        self.emission = defaultdict(self.default)
+        self.emission = defaultdict(default)
         self.categories_count = dict()
         self.categories_pairs_count = dict()
-        self.transition = defaultdict(self.default)
-        self.tags_words_count = defaultdict(self.default)
-
+        self.transition = defaultdict(default)
+        self.tags_words_count = defaultdict(default)
+        self.all_words = set()
 
     def fit(self):
         self.fit_emission()
@@ -82,7 +93,7 @@ class BigramHMM:
         for sentences in self.train_set:
             for word, tag in sentences:
                 self.tags_words_count[tag][word] += 1
-
+                self.all_words.add(word)
 
     def fit_transition(self):
         prev = STARTING_TAG
@@ -95,6 +106,9 @@ class BigramHMM:
             self.categories_pairs_count[prev][END_TAG] += 1
 
     def predict_emission(self, word, tag):
+        if word not in self.tags_words_count[tag]:
+            return 0 #todo check what should be returned for unseen word
+
         total_tag_count = sum(count for _, count in self.tags_words_count[tag])
         return self.tags_words_count[tag][word] / total_tag_count
 
@@ -133,7 +147,6 @@ class BigramHMM:
             prev_pi = pi
 
         # Find the last category
-
         max_cat_idx = None
         max_cat_prob = -float('inf')
 
@@ -161,11 +174,38 @@ class BigramHMM:
         #                x_k = pi(k - 1, prev_cat) * q(cur_cat | prev_cat) * e(word | cur_cat)
         #           pi(k, cur_cat) = argmax{ x_k from prev_cat }
 
+    def compute_error_rate(self):
+        total_words = 0
+        correct_tag_words = 0
+        known_words = 0
+        known_words_correct_tag = 0
+        unknown_words = 0
+        unknown_words_correct_tag = 0
 
+        for sentence in self.test_set:
+            predicted_tags = self.viterbi(sentence)
 
-    @staticmethod
-    def default():
-        return defaultdict(int)
+            for (word, true_tag), predicted_tag in zip(sentence, predicted_tags):
+                total_words += 1
+
+                if word in self.all_words:
+                    known_words += 1
+                else:
+                    unknown_words += 1
+
+                if predicted_tag == true_tag:
+                    correct_tag_words += 1
+
+                    if word in self.all_words:
+                        known_words_correct_tag += 1
+                    else:
+                        unknown_words_correct_tag += 1
+
+        total_words_accuracy = correct_tag_words / total_words
+        known_words_accuracy = known_words_correct_tag / known_words
+        unknown_words_accuracy = unknown_words_correct_tag / unknown_words
+        return 1 - total_words_accuracy, 1 - known_words_accuracy, 1 - unknown_words_accuracy  # total error, know error, unknown error
+
 
 
 # general functions
@@ -203,3 +243,15 @@ if __name__ == '__main__':
     # Question B: basic model
     model = BasicModel(train_set, test_set)
     model.fit()
+    total_e, known_e, unknown_e = model.compute_error_rate()
+    print(f"total error rate: {total_e}")
+    print(f"known words error rate: {known_e}")
+    print(f"unknown words error rate: {unknown_e}")
+
+    #Question C: BigramHMM
+    bigram = BigramHMM(train_set, test_set)
+    bigram.fit()
+    total_e, known_e, unknown_e = bigram.compute_error_rate()
+    print(f"total error rate: {total_e}")
+    print(f"known words error rate: {known_e}")
+    print(f"unknown words error rate: {unknown_e}")
