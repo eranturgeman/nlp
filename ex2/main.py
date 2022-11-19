@@ -79,8 +79,8 @@ class BigramHMM:
         self.train_set = train_set
         self.test_set = test_set
         self.emission = defaultdict(default)
-        self.categories_count = dict()
-        self.categories_pairs_count = dict()
+        self.categories_count = defaultdict(int)
+        self.categories_pairs_count = defaultdict(default)
         self.transition = defaultdict(default)
         self.tags_words_count = defaultdict(default)
         self.all_words = set()
@@ -96,8 +96,8 @@ class BigramHMM:
                 self.all_words.add(word)
 
     def fit_transition(self):
-        prev = STARTING_TAG
         for sentence in self.train_set:
+            prev = STARTING_TAG
             for word, tag in sentence:
                 self.categories_count[prev] += 1
                 self.categories_pairs_count[prev][tag] += 1
@@ -107,9 +107,9 @@ class BigramHMM:
 
     def predict_emission(self, word, tag):
         if word not in self.tags_words_count[tag]:
-            return 0 #todo check what should be returned for unseen word
+            return 1 #todo check what should be returned for unseen word
 
-        total_tag_count = sum(count for _, count in self.tags_words_count[tag])
+        total_tag_count = sum(count for _, count in self.tags_words_count[tag].items())
         return self.tags_words_count[tag][word] / total_tag_count
 
     def predict_transition(self, first_tag, second_tag):
@@ -117,6 +117,7 @@ class BigramHMM:
 
     def viterbi(self, sentence):
         categories = list(self.categories_count.keys())
+        categories.remove('*')
         num_categories = len(categories)
         n = len(sentence)
 
@@ -124,19 +125,19 @@ class BigramHMM:
 
         backpointers = np.zeros((n, num_categories))
 
-        for k, word in enumerate(sentence):
-            pi = np.ones(num_categories)
+        for k, (word, _) in enumerate(sentence):
+            pi = np.zeros(num_categories)
 
             for cur_category_idx, cur_category in enumerate(categories):
-                if k == 1:
-                    pi[cur_category_idx] = self.predict_transition(STARTING_TAG, cur_category) *\
+                if k == 0:
+                    pi[cur_category_idx] = self.predict_transition(STARTING_TAG, cur_category) * \
                                            self.predict_emission(word, cur_category)
                 else:
                     max_calc = -float("inf")
                     max_category_idx = None
                     for prev_category_idx, prev_category in enumerate(categories):
-                        prob_cur_category = prev_pi[prev_category_idx] *\
-                                            self.predict_transition(prev_category, cur_category) *\
+                        prob_cur_category = prev_pi[prev_category_idx] * \
+                                            self.predict_transition(prev_category, cur_category) * \
                                             self.predict_emission(word, cur_category)
                         if prob_cur_category > max_calc:
                             max_calc = prob_cur_category
@@ -157,6 +158,7 @@ class BigramHMM:
                 max_cat_prob = p
 
         predicted_categories = [categories[max_cat_idx]]
+        backpointers = backpointers.astype(int)
         for idx in range(n-2, 0, -1):
             prev_cat_idx = backpointers[idx, max_cat_idx]
             predicted_categories.append(categories[prev_cat_idx])
