@@ -9,6 +9,7 @@ PROB_FOR_UNKNOWN = -float("inf")
 UNKNOWN_TAG = "NN"
 STARTING_TAG = "*"
 END_TAG = "STOP"
+VITERBI_UNKNOWN = ""
 
 
 class BasicModel:
@@ -82,10 +83,6 @@ class BigramHMM:
             for word, tag in sentences:
                 self.tags_words_count[tag][word] += 1
 
-        # for tag, words in tags_words_count.items():
-        #     total_tag_count = sum(count for _, count in words)
-        #     for word, count in words.items():
-        #         self.emission[word][tag] = tags_words_count[tag][word] / total_tag_count
 
     def fit_transition(self):
         prev = STARTING_TAG
@@ -105,7 +102,6 @@ class BigramHMM:
         return self.categories_pairs_count[first_tag][second_tag] / self.categories_count[first_tag]
 
     def viterbi(self, sentence):
-        #todo if needed- backpointed
         categories = list(self.categories_count.keys())
         num_categories = len(categories)
         n = len(sentence)
@@ -119,7 +115,8 @@ class BigramHMM:
 
             for cur_category_idx, cur_category in enumerate(categories):
                 if k == 1:
-                    pi[cur_category_idx] = self.predict_transition(STARTING_TAG, cur_category) * self.predict_emission(word, cur_category)
+                    pi[cur_category_idx] = self.predict_transition(STARTING_TAG, cur_category) *\
+                                           self.predict_emission(word, cur_category)
                 else:
                     max_calc = -float("inf")
                     max_category_idx = None
@@ -136,9 +133,22 @@ class BigramHMM:
             prev_pi = pi
 
         # Find the last category
-        for cat_idx, can_val in enumerate(pi[n - 1])
 
+        max_cat_idx = None
+        max_cat_prob = -float('inf')
 
+        for cat_idx, cat_val in enumerate(prev_pi):
+            p = cat_val * self.predict_transition(categories[cat_idx], END_TAG)
+            if p > max_cat_prob:
+                max_cat_idx = cat_idx
+                max_cat_prob = p
+
+        predicted_categories = [categories[max_cat_idx]]
+        for idx in range(n-2, 0, -1):
+            prev_cat_idx = backpointers[idx, max_cat_idx]
+            predicted_categories.append(categories[prev_cat_idx])
+
+        return predicted_categories[::-1]
 
         #for the k-th word in sentence:
         #   for cur_cat in categories:
