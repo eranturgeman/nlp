@@ -42,6 +42,7 @@ class PosModel:
         return self.max_probability[word]
 
 
+
     @staticmethod
     def default():
         return defaultdict(int)
@@ -53,8 +54,4 @@ if __name__ == '__main__':
     # train_set, test_set = train_test_split(sentences, test_size=TEST_SET_PROPORTION)
     model = PosModel(sentences)
     model.fit()
-    print(model.find_best_tag_probability("said"))
-    print(model.find_best_tag_probability("moshe"))
-
-    # print("hi")
 
