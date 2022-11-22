@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from collections import defaultdict
 
 TEST_SET_PROPORTION = 0.1
-PROB_FOR_UNKNOWN = -float("inf")
+PROB_FOR_UNKNOWN = 1
 UNKNOWN_TAG = "NN"
 STARTING_TAG = "*"
 END_TAG = "STOP"
@@ -75,7 +75,7 @@ class BasicModel:
 
 
 class BigramHMM:
-    def __init__(self, train_set, test_set):
+    def __init__(self, train_set, test_set, add_one_smoothing):
         self.train_set = train_set
         self.test_set = test_set
         self.emission = defaultdict(default)
@@ -84,6 +84,7 @@ class BigramHMM:
         self.transition = defaultdict(default)
         self.tags_words_count = defaultdict(default)
         self.all_words = set()
+        self.add_one_smoothing = add_one_smoothing
 
     def fit(self):
         self.fit_emission()
@@ -95,6 +96,24 @@ class BigramHMM:
                 self.tags_words_count[tag][word] += 1
                 self.all_words.add(word)
 
+        for tag, words in self.tags_words_count.items():
+            for word in words:
+                if self.add_one_smoothing:
+                    self.emission[str(tag)][str(word)] = self.calc_smoothed_emission(word, tag)
+                else:
+                    self.emission[str(tag)][str(word)] = self.calc_emission(word, tag)
+
+    def calc_emission(self, word, tag):
+        if word not in self.tags_words_count[tag]:
+            return 1 if tag == UNKNOWN_TAG else 0 #todo check what should be returned for unseen word
+
+        total_tag_count = sum(count for count in self.tags_words_count[tag].values())
+        return self.tags_words_count[tag][word] / total_tag_count
+
+    def calc_smoothed_emission(self, word, tag):
+        total_tag_count = sum((count + 1) for count in self.tags_words_count[tag].values())
+        return (self.tags_words_count[tag][word] + 1) / total_tag_count
+
     def fit_transition(self):
         for sentence in self.train_set:
             prev = STARTING_TAG
@@ -102,18 +121,17 @@ class BigramHMM:
                 self.categories_count[prev] += 1
                 self.categories_pairs_count[prev][tag] += 1
                 prev = tag
-            self.categories_count[prev] += 1
+            # self.categories_count[prev] += 1
             self.categories_pairs_count[prev][END_TAG] += 1
 
-    def predict_emission(self, word, tag):
-        if word not in self.tags_words_count[tag]:
-            return 1 #todo check what should be returned for unseen word
+        for first_tag, second_tags in self.categories_pairs_count.items():
+            for second_tag in second_tags.keys():
+                self.transition[first_tag][second_tag] = self.categories_pairs_count[first_tag][second_tag] / self.categories_count[first_tag]
 
-        total_tag_count = sum(count for _, count in self.tags_words_count[tag].items())
-        return self.tags_words_count[tag][word] / total_tag_count
+        import json
 
-    def predict_transition(self, first_tag, second_tag):
-        return self.categories_pairs_count[first_tag][second_tag] / self.categories_count[first_tag]
+        # print(json.dumps(self.transition, indent=2))
+        pass
 
     def viterbi(self, sentence):
         categories = list(self.categories_count.keys())
@@ -121,48 +139,51 @@ class BigramHMM:
         num_categories = len(categories)
         n = len(sentence)
 
-        prev_pi = None
-
         backpointers = np.zeros((n, num_categories))
 
+        pi = np.zeros((n, num_categories))
         for k, (word, _) in enumerate(sentence):
-            pi = np.zeros(num_categories)
 
             for cur_category_idx, cur_category in enumerate(categories):
                 if k == 0:
-                    pi[cur_category_idx] = self.predict_transition(STARTING_TAG, cur_category) * \
-                                           self.predict_emission(word, cur_category)
+                    pi[k, cur_category_idx] = self.transition[STARTING_TAG][cur_category] * \
+                                           self.emission[str(cur_category)][str(word)]
+                    # print("transition = ", self.transition[STARTING_TAG][cur_category])
+                    # print("emission = ", self.emission[str(cur_category)][str(word)])
+                # pi[k-1, prev_category_idx] * \
                 else:
-                    max_calc = -float("inf")
+                    max_calc = -1
                     max_category_idx = None
                     for prev_category_idx, prev_category in enumerate(categories):
-                        prob_cur_category = prev_pi[prev_category_idx] * \
-                                            self.predict_transition(prev_category, cur_category) * \
-                                            self.predict_emission(word, cur_category)
+                        prob_cur_category = 1 * \
+                                            self.transition[prev_category][cur_category] * \
+                                            self.emission[str(cur_category)][str(word)]
                         if prob_cur_category > max_calc:
                             max_calc = prob_cur_category
                             max_category_idx = prev_category_idx
 
-                    pi[cur_category_idx] = max_calc
+                    pi[k, cur_category_idx] = pi[k-1, cur_category_idx] * self.transition[cur_category][UNKNOWN_TAG] * self.emission[UNKNOWN_TAG][word]
                     backpointers[k, cur_category_idx] = max_category_idx
-            prev_pi = pi
+            # if k>0:
+            #     assert backpointers[k].any(), f"{k} backpointers are zero"
 
         # Find the last category
         max_cat_idx = None
         max_cat_prob = -float('inf')
 
-        for cat_idx, cat_val in enumerate(prev_pi):
-            p = cat_val * self.predict_transition(categories[cat_idx], END_TAG)
+        for cat_idx, cat_val in enumerate(pi[n-1]):
+            p = cat_val * self.transition[categories[cat_idx]][END_TAG]
             if p > max_cat_prob:
                 max_cat_idx = cat_idx
                 max_cat_prob = p
 
         predicted_categories = [categories[max_cat_idx]]
         backpointers = backpointers.astype(int)
-        for idx in range(n-2, 0, -1):
+        for idx in range(n-1, 0, -1):
             prev_cat_idx = backpointers[idx, max_cat_idx]
             predicted_categories.append(categories[prev_cat_idx])
 
+        # print(predicted_categories)
         return predicted_categories[::-1]
 
         #for the k-th word in sentence:
@@ -188,6 +209,7 @@ class BigramHMM:
             predicted_tags = self.viterbi(sentence)
 
             for (word, true_tag), predicted_tag in zip(sentence, predicted_tags):
+                # print(true_tag, predicted_tag)
                 total_words += 1
 
                 if word in self.all_words:
@@ -240,20 +262,32 @@ if __name__ == '__main__':
     nltk.download('brown')
     dataset = brown.tagged_sents(categories='news')
     dataset = clean_dataset(dataset)
-    train_set, test_set = train_test_split(dataset, test_size=TEST_SET_PROPORTION)
+    train_set, test_set = train_test_split(dataset, test_size=TEST_SET_PROPORTION, shuffle=False)
 
     # Question B: basic model
     model = BasicModel(train_set, test_set)
     model.fit()
     total_e, known_e, unknown_e = model.compute_error_rate()
+    print("B. MLE error rate:")
     print(f"total error rate: {total_e}")
     print(f"known words error rate: {known_e}")
     print(f"unknown words error rate: {unknown_e}")
 
-    #Question C: BigramHMM
-    bigram = BigramHMM(train_set, test_set)
+    # # todo fix
+    # #Question C: BigramHMM
+    bigram = BigramHMM(train_set, test_set, add_one_smoothing=False)
     bigram.fit()
     total_e, known_e, unknown_e = bigram.compute_error_rate()
+    print('\nC. Bigram HMM tagger error rate')
+    print(f"total error rate: {total_e}")
+    print(f"known words error rate: {known_e}")
+    print(f"unknown words error rate: {unknown_e}")
+
+    #Question D: BigramHMM with add-one smoothing
+    smoothed_bigram = BigramHMM(train_set, test_set, add_one_smoothing=True)
+    smoothed_bigram.fit()
+    total_e, known_e, unknown_e = smoothed_bigram.compute_error_rate()
+    print('\nD. Bigram HMM tagger with add-one smoothing error rate')
     print(f"total error rate: {total_e}")
     print(f"known words error rate: {known_e}")
     print(f"unknown words error rate: {unknown_e}")
