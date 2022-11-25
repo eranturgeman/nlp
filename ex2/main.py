@@ -104,15 +104,15 @@ class BigramHMM:
                     self.emission[str(tag)][str(word)] = self.calc_emission(word, tag)
 
     def calc_emission(self, word, tag):
-        if word not in self.tags_words_count[tag]:
-            return 1 if tag == UNKNOWN_TAG else 0 #todo check what should be returned for unseen word
+        # if word not in self.tags_words_count[tag]:
+        #     return 0 # # if tag == UNKNOWN_TAG else 0 #todo check what should be returned for unseen word
 
         total_tag_count = sum(count for count in self.tags_words_count[tag].values())
         return self.tags_words_count[tag][word] / total_tag_count
 
     def calc_smoothed_emission(self, word, tag):
-        total_tag_count = sum((count + 1) for count in self.tags_words_count[tag].values())
-        return (self.tags_words_count[tag][word] + 1) / total_tag_count
+        total_tag_count = sum(count for count in self.tags_words_count[tag].values())
+        return (self.tags_words_count[tag][word] + 1) / (total_tag_count + len(self.all_words))
 
     def fit_transition(self):
         for sentence in self.train_set:
@@ -121,7 +121,7 @@ class BigramHMM:
                 self.categories_count[prev] += 1
                 self.categories_pairs_count[prev][tag] += 1
                 prev = tag
-            # self.categories_count[prev] += 1
+            self.categories_count[prev] += 1
             self.categories_pairs_count[prev][END_TAG] += 1
 
         for first_tag, second_tags in self.categories_pairs_count.items():
@@ -140,32 +140,27 @@ class BigramHMM:
         n = len(sentence)
 
         backpointers = np.zeros((n, num_categories))
-
         pi = np.zeros((n, num_categories))
         for k, (word, _) in enumerate(sentence):
-
             for cur_category_idx, cur_category in enumerate(categories):
-                if k == 0:
-                    pi[k, cur_category_idx] = self.transition[STARTING_TAG][cur_category] * \
-                                           self.emission[str(cur_category)][str(word)]
-                    # print("transition = ", self.transition[STARTING_TAG][cur_category])
-                    # print("emission = ", self.emission[str(cur_category)][str(word)])
-                # pi[k-1, prev_category_idx] * \
+                if word not in self.all_words and cur_category == 'NN':
+                    e = 1
                 else:
-                    max_calc = -1
+                    e = self.emission[cur_category][word]
+
+                if k == 0:
+                    pi[k, cur_category_idx] = 1 * self.transition[STARTING_TAG][cur_category] * e
+                else:
+                    max_calc = -float('inf')
                     max_category_idx = None
                     for prev_category_idx, prev_category in enumerate(categories):
-                        prob_cur_category = 1 * \
-                                            self.transition[prev_category][cur_category] * \
-                                            self.emission[str(cur_category)][str(word)]
+                        prob_cur_category = pi[k-1, prev_category_idx] * self.transition[prev_category][cur_category] * e
                         if prob_cur_category > max_calc:
                             max_calc = prob_cur_category
                             max_category_idx = prev_category_idx
 
-                    pi[k, cur_category_idx] = pi[k-1, cur_category_idx] * self.transition[cur_category][UNKNOWN_TAG] * self.emission[UNKNOWN_TAG][word]
+                    pi[k, cur_category_idx] = max_calc
                     backpointers[k, cur_category_idx] = max_category_idx
-            # if k>0:
-            #     assert backpointers[k].any(), f"{k} backpointers are zero"
 
         # Find the last category
         max_cat_idx = None
@@ -182,8 +177,8 @@ class BigramHMM:
         for idx in range(n-1, 0, -1):
             prev_cat_idx = backpointers[idx, max_cat_idx]
             predicted_categories.append(categories[prev_cat_idx])
+            max_cat_idx = prev_cat_idx
 
-        # print(predicted_categories)
         return predicted_categories[::-1]
 
         #for the k-th word in sentence:
