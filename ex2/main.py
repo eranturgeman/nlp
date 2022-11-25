@@ -3,12 +3,34 @@ import numpy as np
 from nltk.corpus import brown
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
+import re
 
 TEST_SET_PROPORTION = 0.1
 PROB_FOR_UNKNOWN = 1
 UNKNOWN_TAG = "NN"
 STARTING_TAG = "*"
 END_TAG = "STOP"
+PSEUDO_WORDS_THRESHOLD = 5
+
+PSEUDO_WORDS_PATTERNS = {
+    'twoDigitNum': '\d\d',
+    'fourDigitNum': '\d\d\d\d',
+    'containsDigitAndAlpha': '(.*[a-zA-Z]\d.*)|(.*\d[a-zA-Z].*)',
+    'containsDigitAndDash': '\d+-\d+',
+    'containsDateFormat': '(\d+/\d+/\d+)|(\d+.d+.\d+)',
+    'containsDigitAndPeriod': '\d+\.\d+',
+    'othernum': '\d+',
+    'allCaps': '[A-Z]+',
+    'capPeriod': '[A-Z].',
+    'initCap': '[A-Z][a-z]+',
+    'endsWithIng': '[A-Za-z]+ing',
+    'endsWithS': '[A-Za-z]+s',
+    'endsWithApostropheS': "[A-Za-z]+'s",
+    'endsWithEd': "[A-Za-z]+ed",
+    'lettersApostropheLetter': "[A-Za-z]+'[A-Za-z]",
+    'lowercase': '[a-z]+',
+}
+OTHER_WORDS = 'OtherCategory'
 
 def default():
     return defaultdict(int)
@@ -70,7 +92,10 @@ class BasicModel:
         total_words_accuracy = correct_tag_words / total_words
         known_words_accuracy = known_words_correct_tag / known_words
         unknown_words_accuracy = unknown_words_correct_tag / unknown_words
-        return 1 - total_words_accuracy, 1 - known_words_accuracy, 1 - unknown_words_accuracy #total error, know error, unknown error
+
+        print(f"total error rate: {1 - total_words_accuracy}")
+        print(f"known words error rate: {1 - known_words_accuracy}")
+        print(f"unknown words error rate: {1 - unknown_words_accuracy}")
 
 
 class BigramHMM:
@@ -216,7 +241,10 @@ class BigramHMM:
         total_words_accuracy = correct_tag_words / total_words
         known_words_accuracy = known_words_correct_tag / known_words
         unknown_words_accuracy = unknown_words_correct_tag / unknown_words
-        return 1 - total_words_accuracy, 1 - known_words_accuracy, 1 - unknown_words_accuracy  # total error, know error, unknown error
+
+        print(f"total error rate: {1 - total_words_accuracy}")
+        print(f"known words error rate: {1 - known_words_accuracy}")
+        print(f"unknown words error rate: {1 - unknown_words_accuracy}")
 
 
 # general functions
@@ -244,6 +272,27 @@ def clean_dataset(dataset):
 
     return clean
 
+def get_pseudo_word(word):
+    for tag, pattern in PSEUDO_WORDS_PATTERNS.items():
+        if re.fullmatch(pattern, word):
+            return tag
+    return OTHER_WORDS
+
+def pseudo_words_data_set(dataset):
+    words_counter = defaultdict(int)
+    for sentence in dataset:
+        for word, tag in sentence:
+            words_counter[word] += 1
+
+    for sentence in dataset:
+        for i, (word, tag) in enumerate(sentence):
+            if words_counter[word] < PSEUDO_WORDS_THRESHOLD:
+                # Low Frequency words
+                sentence[i] = (word, get_pseudo_word(word))
+
+    return dataset
+
+
 if __name__ == '__main__':
     # reading, cleaning and splitting corpus
     nltk.download('brown')
@@ -252,29 +301,24 @@ if __name__ == '__main__':
     train_set, test_set = train_test_split(dataset, test_size=TEST_SET_PROPORTION, shuffle=False)
 
     # Question B: basic model
+    print("B. MLE error rate:")
     model = BasicModel(train_set, test_set)
     model.fit()
-    total_e, known_e, unknown_e = model.compute_error_rate()
-    print("B. MLE error rate:")
-    print(f"total error rate: {total_e}")
-    print(f"known words error rate: {known_e}")
-    print(f"unknown words error rate: {unknown_e}")
+    model.compute_error_rate()
 
-    # # todo fix
-    # #Question C: BigramHMM
+    #Question C: BigramHMM
+    print('\nC. Bigram HMM tagger error rate')
     bigram = BigramHMM(train_set, test_set, add_one_smoothing=False)
     bigram.fit()
-    total_e, known_e, unknown_e = bigram.compute_error_rate()
-    print('\nC. Bigram HMM tagger error rate')
-    print(f"total error rate: {total_e}")
-    print(f"known words error rate: {known_e}")
-    print(f"unknown words error rate: {unknown_e}")
+    bigram.compute_error_rate()
 
     #Question D: BigramHMM with add-one smoothing
+    print('\nD. Bigram HMM tagger with add-one smoothing error rate')
     smoothed_bigram = BigramHMM(train_set, test_set, add_one_smoothing=True)
     smoothed_bigram.fit()
-    total_e, known_e, unknown_e = smoothed_bigram.compute_error_rate()
-    print('\nD. Bigram HMM tagger with add-one smoothing error rate')
-    print(f"total error rate: {total_e}")
-    print(f"known words error rate: {known_e}")
-    print(f"unknown words error rate: {unknown_e}")
+    smoothed_bigram.compute_error_rate()
+
+    print('\nE. Bigram HMM tagger with PseudoWords')
+    smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=True)
+    smoothed_bigram.fit()
+    smoothed_bigram.compute_error_rate()
