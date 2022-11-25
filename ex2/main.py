@@ -288,7 +288,8 @@ def pseudo_words_data_set(dataset):
         for i, (word, tag) in enumerate(sentence):
             if words_counter[word] < PSEUDO_WORDS_THRESHOLD:
                 # Low Frequency words
-                sentence[i] = (word, get_pseudo_word(word))
+                new_word = get_pseudo_word(word)
+                sentence[i] = (new_word, tag)
 
     return dataset
 
@@ -299,26 +300,31 @@ if __name__ == '__main__':
     dataset = brown.tagged_sents(categories='news')
     dataset = clean_dataset(dataset)
     train_set, test_set = train_test_split(dataset, test_size=TEST_SET_PROPORTION, shuffle=False)
+    #
+    # # Question B: basic model
+    # print("B. MLE error rate:")
+    # model = BasicModel(train_set, test_set)
+    # model.fit()
+    # model.compute_error_rate()
+    #
+    # #Question C: BigramHMM
+    # print('\nC. Bigram HMM tagger error rate')
+    # bigram = BigramHMM(train_set, test_set, add_one_smoothing=False)
+    # bigram.fit()
+    # bigram.compute_error_rate()
+    #
+    # #Question D: BigramHMM with add-one smoothing
+    # print('\nD. Bigram HMM tagger with add-one smoothing error rate')
+    # smoothed_bigram = BigramHMM(train_set, test_set, add_one_smoothing=True)
+    # smoothed_bigram.fit()
+    # smoothed_bigram.compute_error_rate()
 
-    # Question B: basic model
-    print("B. MLE error rate:")
-    model = BasicModel(train_set, test_set)
-    model.fit()
-    model.compute_error_rate()
-
-    #Question C: BigramHMM
-    print('\nC. Bigram HMM tagger error rate')
-    bigram = BigramHMM(train_set, test_set, add_one_smoothing=False)
-    bigram.fit()
-    bigram.compute_error_rate()
-
-    #Question D: BigramHMM with add-one smoothing
-    print('\nD. Bigram HMM tagger with add-one smoothing error rate')
-    smoothed_bigram = BigramHMM(train_set, test_set, add_one_smoothing=True)
+    print('\nE.i Bigram HMM tagger with PseudoWords')
+    smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=False)
     smoothed_bigram.fit()
     smoothed_bigram.compute_error_rate()
 
-    print('\nE. Bigram HMM tagger with PseudoWords')
+    print('\nE.ii Bigram HMM tagger with PseudoWords with Add-One smoothing')
     smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=True)
     smoothed_bigram.fit()
     smoothed_bigram.compute_error_rate()
