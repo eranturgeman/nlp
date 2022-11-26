@@ -1,5 +1,6 @@
 import nltk
 import numpy as np
+import pandas as pd
 from nltk.corpus import brown
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
@@ -246,8 +247,26 @@ class BigramHMM:
         print(f"known words error rate: {1 - known_words_accuracy}")
         print(f"unknown words error rate: {1 - unknown_words_accuracy}")
 
+    def get_confusion_matrix(self):
+        print(self.categories_count)
+        categories = set(self.categories_count.keys())
+        for s in self.test_set:
+            for w, t in s:
+                categories.add(t)
 
-# general functions
+        m = pd.DataFrame(columns=categories, index=categories).fillna(0)
+
+        for sentence in self.test_set:
+            predicted_tags = self.viterbi(sentence)
+
+            for (word, true_tag), predicted_tag in zip(sentence, predicted_tags):
+                m[predicted_tag][true_tag] += 1
+
+        print(m)
+        m.to_excel("output.xlsx")
+
+
+    # general functions
 def filter_tag(tag):
     #todo check if * can appear as prefix. if so modify this func to handle it
     if '*' in tag:
@@ -318,13 +337,14 @@ if __name__ == '__main__':
     # smoothed_bigram = BigramHMM(train_set, test_set, add_one_smoothing=True)
     # smoothed_bigram.fit()
     # smoothed_bigram.compute_error_rate()
+    #
+    # print('\nE.ii Bigram HMM tagger with PseudoWords')
+    # smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=False)
+    # smoothed_bigram.fit()
+    # smoothed_bigram.compute_error_rate()
 
-    print('\nE.i Bigram HMM tagger with PseudoWords')
-    smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=False)
-    smoothed_bigram.fit()
-    smoothed_bigram.compute_error_rate()
-
-    print('\nE.ii Bigram HMM tagger with PseudoWords with Add-One smoothing')
+    print('\nE.iii Bigram HMM tagger with PseudoWords with Add-One smoothing')
     smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=True)
     smoothed_bigram.fit()
-    smoothed_bigram.compute_error_rate()
+    # smoothed_bigram.compute_error_rate()
+    smoothed_bigram.get_confusion_matrix()
