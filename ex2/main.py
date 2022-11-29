@@ -34,7 +34,7 @@ PSEUDO_WORDS_PATTERNS = {
 OTHER_WORDS = 'OtherCategory'
 
 def default():
-    return defaultdict(int)
+    return defaultdict(float)
 
 
 class BasicModel:
