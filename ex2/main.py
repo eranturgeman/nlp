@@ -30,7 +30,6 @@ PSEUDO_WORDS_PATTERNS = {
     'endsWithEd': "[A-Za-z]+ed",
     'lettersApostropheLetter': "[A-Za-z]+'[A-Za-z]",
     'lowercase': '[a-z]+',
-
 }
 OTHER_WORDS = 'OtherCategory'
 
@@ -262,7 +261,6 @@ class BigramHMM:
             for (word, true_tag), predicted_tag in zip(sentence, predicted_tags):
                 m[predicted_tag][true_tag] += 1
 
-        print(m)
         m.to_excel("output.xlsx")
 
 
