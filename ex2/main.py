@@ -22,7 +22,7 @@ PSEUDO_WORDS_PATTERNS = {
     'containsDigitAndPeriod': '\d+\.\d+',
     'othernum': '\d+',
     'allCaps': '[A-Z]+',
-    'capPeriod': '[A-Z].',
+    'capPeriod': '[A-Z]\.',
     'initCap': '[A-Z][a-z]+',
     'endsWithIng': '[A-Za-z]+ing',
     'endsWithS': '[A-Za-z]+s',
@@ -30,6 +30,7 @@ PSEUDO_WORDS_PATTERNS = {
     'endsWithEd': "[A-Za-z]+ed",
     'lettersApostropheLetter': "[A-Za-z]+'[A-Za-z]",
     'lowercase': '[a-z]+',
+
 }
 OTHER_WORDS = 'OtherCategory'
 
@@ -248,7 +249,6 @@ class BigramHMM:
         print(f"unknown words error rate: {1 - unknown_words_accuracy}")
 
     def get_confusion_matrix(self):
-        print(self.categories_count)
         categories = set(self.categories_count.keys())
         for s in self.test_set:
             for w, t in s:
@@ -319,32 +319,32 @@ if __name__ == '__main__':
     dataset = brown.tagged_sents(categories='news')
     dataset = clean_dataset(dataset)
     train_set, test_set = train_test_split(dataset, test_size=TEST_SET_PROPORTION, shuffle=False)
-    #
-    # # Question B: basic model
-    # print("B. MLE error rate:")
-    # model = BasicModel(train_set, test_set)
-    # model.fit()
-    # model.compute_error_rate()
-    #
-    # #Question C: BigramHMM
-    # print('\nC. Bigram HMM tagger error rate')
-    # bigram = BigramHMM(train_set, test_set, add_one_smoothing=False)
-    # bigram.fit()
-    # bigram.compute_error_rate()
-    #
-    # #Question D: BigramHMM with add-one smoothing
-    # print('\nD. Bigram HMM tagger with add-one smoothing error rate')
-    # smoothed_bigram = BigramHMM(train_set, test_set, add_one_smoothing=True)
-    # smoothed_bigram.fit()
-    # smoothed_bigram.compute_error_rate()
-    #
-    # print('\nE.ii Bigram HMM tagger with PseudoWords')
-    # smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=False)
-    # smoothed_bigram.fit()
-    # smoothed_bigram.compute_error_rate()
+    
+    # Question B: basic model
+    print("B. MLE error rate:")
+    model = BasicModel(train_set, test_set)
+    model.fit()
+    model.compute_error_rate()
+    
+    #Question C: BigramHMM
+    print('\nC. Bigram HMM tagger error rate')
+    bigram = BigramHMM(train_set, test_set, add_one_smoothing=False)
+    bigram.fit()
+    bigram.compute_error_rate()
+    
+    #Question D: BigramHMM with add-one smoothing
+    print('\nD. Bigram HMM tagger with add-one smoothing error rate')
+    smoothed_bigram = BigramHMM(train_set, test_set, add_one_smoothing=True)
+    smoothed_bigram.fit()
+    smoothed_bigram.compute_error_rate()
+    
+    print('\nE.ii Bigram HMM tagger with PseudoWords')
+    smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=False)
+    smoothed_bigram.fit()
+    smoothed_bigram.compute_error_rate()
 
     print('\nE.iii Bigram HMM tagger with PseudoWords with Add-One smoothing')
     smoothed_bigram = BigramHMM(pseudo_words_data_set(list(train_set)), pseudo_words_data_set(list(test_set)), add_one_smoothing=True)
     smoothed_bigram.fit()
-    # smoothed_bigram.compute_error_rate()
+    smoothed_bigram.compute_error_rate()
     smoothed_bigram.get_confusion_matrix()
