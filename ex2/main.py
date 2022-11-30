@@ -22,7 +22,7 @@ PSEUDO_WORDS_PATTERNS = {
     'containsDigitAndPeriod': '\d+\.\d+',
     'othernum': '\d+',
     'allCaps': '[A-Z]+',
-    'capPeriod': '[A-Z].',
+    'capPeriod': '[A-Z]\.',
     'initCap': '[A-Z][a-z]+',
     'endsWithIng': '[A-Za-z]+ing',
     'endsWithS': '[A-Za-z]+s',
@@ -34,7 +34,7 @@ PSEUDO_WORDS_PATTERNS = {
 OTHER_WORDS = 'OtherCategory'
 
 def default():
-    return defaultdict(int)
+    return defaultdict(float)
 
 
 class BasicModel:
@@ -248,7 +248,6 @@ class BigramHMM:
         print(f"unknown words error rate: {1 - unknown_words_accuracy}")
 
     def get_confusion_matrix(self):
-        print(self.categories_count)
         categories = set(self.categories_count.keys())
         for s in self.test_set:
             for w, t in s:
@@ -262,7 +261,6 @@ class BigramHMM:
             for (word, true_tag), predicted_tag in zip(sentence, predicted_tags):
                 m[predicted_tag][true_tag] += 1
 
-        print(m)
         m.to_excel("output.xlsx")
 
 
