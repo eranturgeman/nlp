@@ -324,7 +324,6 @@ def binary_accuracy(preds, y):
     #todo check what should 0.5 be rounded to- up or down?
     y = np.around(y)
     preds = np.around(preds)
-
     return ((y == preds).sum()) / number_of_examples
 
 
@@ -339,8 +338,13 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
+    for sentence, label in data_iterator: #todo make sure its tupels
+        forward_res = model.forward(sentence)
+        optimizer.zero_grad()
+        loss_score = criterion(forward_res) #todo make sure in the criterion we operate sigmoid
+        loss_score.backward()
+        optimizer.step()
 
-    return
 
 
 def evaluate(model, data_iterator, criterion):
@@ -351,7 +355,11 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    return
+    for sentence, label in data_iterator: #todo make sure its tupels
+        forward_res = model.forward(sentence)
+        loss_score = criterion(forward_res) #todo make sure in the criterion we operate sigmoid
+        loss_score.backward()
+
 
 
 def get_predictions_for_data(model, data_iter):
