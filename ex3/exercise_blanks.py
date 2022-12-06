@@ -1,4 +1,4 @@
-import torch
+import torch #todo check on torch 1.3 version
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -125,7 +125,9 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    return
+    res = np.zeros(size)
+    res[ind] = 1
+    return res
 
 
 def average_one_hots(sent, word_to_ind):
@@ -136,7 +138,15 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    return
+    #todo what is sentence OBJECT?
+    #todo MAYBE switch implementation for creating a single vector and not summing vectors like this implementation
+    vocabulary_size = len(word_to_ind)
+    res = np.zeros(vocabulary_size)
+
+    for word in sent:
+        res += get_one_hot(vocabulary_size, word_to_ind[word])
+
+    return res / len(sent)
 
 
 def get_word_to_ind(words_list):
@@ -146,7 +156,7 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    return
+    return {word: i for i, word in enumerate(words_list)}
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
@@ -290,6 +300,7 @@ class LogLinear(nn.Module):
         return
 
     def forward(self, x):
+        # DO NOT implement sigmoid here
         return
 
     def predict(self, x):
@@ -307,8 +318,16 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
+    # assume preds are already rounded to 0 or 1
 
-    return
+    number_of_examples = y.shape[0]
+    #todo check what should 0.5 be rounded to- up or down?
+    y = np.around(y)
+    preds = np.around(preds)
+
+    return ((y == preds).sum()) / number_of_examples
+
+
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
