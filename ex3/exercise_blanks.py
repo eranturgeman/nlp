@@ -138,15 +138,18 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    #todo what is sentence OBJECT?
     #todo MAYBE switch implementation for creating a single vector and not summing vectors like this implementation
+
     vocabulary_size = len(word_to_ind)
     res = np.zeros(vocabulary_size)
 
-    for word in sent:
+    leaves = sent.get_leaves()
+    for leave in leaves:
+        assert len(leave.text) == 1 #todo DEL
+        word = leave.text[0]
         res += get_one_hot(vocabulary_size, word_to_ind[word])
 
-    return res / len(sent)
+    return res / len(leaves)
 
 
 def get_word_to_ind(words_list):
@@ -297,14 +300,16 @@ class LogLinear(nn.Module):
     general class for the log-linear models for sentiment analysis.
     """
     def __init__(self, embedding_dim):
-        return
+        super(LogLinear, self).__init__()
+        self.linear = nn.Linear(embedding_dim, 1)
 
     def forward(self, x):
         # DO NOT implement sigmoid here
-        return
+        return self.linear(x)
 
     def predict(self, x):
-        return
+        # here we use sigmoid since we will not use cross entropy on test set and we want the prediction right away
+        return torch.sigmoid(self.forward(x))
 
 
 # ------------------------- training functions -------------
@@ -341,7 +346,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     for sentence, label in data_iterator: #todo make sure its tupels
         forward_res = model.forward(sentence)
         optimizer.zero_grad()
-        loss_score = criterion(forward_res) #todo make sure in the criterion we operate sigmoid
+        loss_score = criterion(forward_res, label) #todo make sure in the criterion we operate sigmoid
         loss_score.backward()
         optimizer.step()
 
@@ -355,6 +360,7 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
+    # todo torch.no_grad()
     for sentence, label in data_iterator: #todo make sure its tupels
         forward_res = model.forward(sentence)
         loss_score = criterion(forward_res) #todo make sure in the criterion we operate sigmoid
