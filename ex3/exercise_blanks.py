@@ -14,6 +14,10 @@ import tqdm
 
 SEQ_LEN = 52
 W2V_EMBEDDING_DIM = 300
+EPOCH_NUM = 20
+LEARNING_RATE = 0.01
+LOG_LINEAR_BATCH_SIZE = 64
+LOG_LINEAR_WIGHT_DECAY = 0.001
 
 ONEHOT_AVERAGE = "onehot_average"
 W2V_AVERAGE = "w2v_average"
@@ -343,10 +347,10 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
-    for sentence, label in data_iterator: #todo make sure its tupels
-        forward_res = model.forward(sentence)
+    for embedding_batch, label_batch in data_iterator:
+        forward_res = model.forward(embedding_batch.float()).reshape(-1)
         optimizer.zero_grad()
-        loss_score = criterion(forward_res, label) #todo make sure in the criterion we operate sigmoid
+        loss_score = criterion(forward_res, label_batch) #todo make sure in the criterion we activate sigmoid
         loss_score.backward()
         optimizer.step()
 
@@ -360,11 +364,17 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    # todo torch.no_grad()
-    for sentence, label in data_iterator: #todo make sure its tupels
-        forward_res = model.forward(sentence)
-        loss_score = criterion(forward_res) #todo make sure in the criterion we operate sigmoid
-        loss_score.backward()
+    avg_loss_arr = []
+    avg_accuracy_arr = []
+
+    with torch.no_grad():
+        for embedding_batch, label_batch in data_iterator:
+            forward_res = model.forward(embedding_batch)
+            loss_score = criterion(forward_res, label_batch) #todo make sure in the criterion we activate sigmoid
+            avg_loss_arr.append(loss_score.item())
+            avg_accuracy_arr.append(binary_accuracy(forward_res, label_batch))
+
+    return np.mean(avg_loss_arr), np.mean(avg_accuracy_arr)
 
 
 
@@ -391,14 +401,45 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
-    return
+    train_loss = []
+    train_acc = []
+    validation_loss = []
+    validation_acc = []
+
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = nn.BCEWithLogitsLoss()
+
+    for epoch in range(n_epochs):
+        train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
+        #train set eval
+        loss, acc = evaluate(model, data_manager.get_torch_iterator(TRAIN), criterion)
+        train_loss.append(loss)
+        train_acc.append(acc)
+
+        #validation set eval
+        loss, acc = evaluate(model, data_manager.get_torch_iterator(VAL), criterion)
+        validation_loss.append(loss)
+        validation_acc.append(acc)
+
+    return train_loss, train_acc, validation_loss, validation_acc
+
 
 
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    return
+    device = get_available_device()
+    data_manager = DataManager(batch_size=LOG_LINEAR_BATCH_SIZE)
+    log_linear = LogLinear(data_manager.get_input_shape()[0]).to(device)
+
+    train_loss, train_acc, validation_loss, validation_acc = \
+        train_model(log_linear, data_manager, EPOCH_NUM, LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY)
+
+    print(f"train loss:\n {train_loss}")
+    print(f"train accuracy:\n {train_acc}")
+    print(f"validation loss:\n {validation_loss}")
+    print(f"validation accuracy:\n {validation_acc}")
 
 
 def train_log_linear_with_w2v():
