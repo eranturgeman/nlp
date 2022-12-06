@@ -448,14 +448,24 @@ def train_log_linear_with_one_hot():
     plt.plot(epochs, train_loss, 'r')
     plt.plot(epochs, validation_loss, 'b')
     plt.xlabel("Number of epochs")
-    plt.ylabel("Loss rate")
+    plt.ylabel("Loss")
     plt.title("Train & Validation Loss")
     plt.show()
+    plt.savefig('train_validation_loss.png')
+    plt.clf()
 
-    print(f"train loss:\n {train_loss}")
-    print(f"train accuracy:\n {train_acc}")
-    print(f"validation loss:\n {validation_loss}")
-    print(f"validation accuracy:\n {validation_acc}")
+    plt.plot(epochs, train_acc, 'r')
+    plt.plot(epochs, validation_acc, 'b')
+    plt.xlabel("Number of epochs")
+    plt.ylabel("Accuracy")
+    plt.title("Train & Validation Accuracy")
+    plt.show()
+    plt.savefig('train_validation_loss.png')
+
+    #print(f"train loss:\n {train_loss}")
+    #print(f"train accuracy:\n {train_acc}")
+    #print(f"validation loss:\n {validation_loss}")
+    #print(f"validation accuracy:\n {validation_acc}")
 
 
 def train_log_linear_with_w2v():
