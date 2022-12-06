@@ -9,6 +9,7 @@ import operator
 import data_loader
 import pickle
 import tqdm
+import matplotlib.pyplot as plt
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -369,7 +370,7 @@ def evaluate(model, data_iterator, criterion):
 
     with torch.no_grad():
         for embedding_batch, label_batch in data_iterator:
-            forward_res = model.forward(embedding_batch)
+            forward_res = model.forward(embedding_batch.float()).reshape(-1)
             loss_score = criterion(forward_res, label_batch) #todo make sure in the criterion we activate sigmoid
             avg_loss_arr.append(loss_score.item())
             avg_accuracy_arr.append(binary_accuracy(forward_res, label_batch))
@@ -388,7 +389,13 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    return
+    res = []
+    for embedding_batch, _ in data_iter:
+        res.extend(model.predict(embedding_batch))
+
+    return np.array(res)
+
+
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -435,6 +442,15 @@ def train_log_linear_with_one_hot():
 
     train_loss, train_acc, validation_loss, validation_acc = \
         train_model(log_linear, data_manager, EPOCH_NUM, LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY)
+
+    epochs = [i for i in range(EPOCH_NUM)]
+
+    plt.plot(epochs, train_loss, 'r')
+    plt.plot(epochs, validation_loss, 'b')
+    plt.xlabel("Number of epochs")
+    plt.ylabel("Loss rate")
+    plt.title("Train & Validation Loss")
+    plt.show()
 
     print(f"train loss:\n {train_loss}")
     print(f"train accuracy:\n {train_acc}")
