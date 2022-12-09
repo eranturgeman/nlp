@@ -23,11 +23,14 @@ LOG_LINEAR_WIGHT_DECAY = 0.001
 ONEHOT_AVERAGE = "onehot_average"
 W2V_AVERAGE = "w2v_average"
 W2V_SEQUENCE = "w2v_sequence"
-LOG_LINEAR_PATH = "log_linear.model.epoch"
+LOG_LINEAR_PATH = "log_linear_models/log_linear.model.epoch"
+W2V_PATH = "w2v_models/w2v.model.epoch"
 
 TRAIN = "train"
 VAL = "val"
 TEST = "test"
+RARE_WORDS = 'rare'
+NEGATED_POLARITY = "negated polarity"
 
 LOAD_MODEL = False
 
@@ -123,7 +126,21 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    res = np.zeros(embedding_dim)
+    leaves = sent.get_leaves()
+    known_words_amount = 0
+
+    for leave in leaves:
+        assert len(leave.text) == 1  # todo DEL
+        word = leave.text[0]
+        if word in word_to_vec:  #todo check if should sum the zero-vecs for unknown words (and increase denomenator)
+            res += word_to_vec[word]
+            known_words_amount += 1
+
+    return (res / known_words_amount) if known_words_amount != 0 else res
+
+
+
 
 
 def get_one_hot(size, ind):
@@ -237,6 +254,12 @@ class DataManager():
         self.sentences[VAL] = self.sentiment_dataset.get_validation_set()
         self.sentences[TEST] = self.sentiment_dataset.get_test_set()
 
+        rare_words_indices = data_loader.get_rare_words_examples(self.sentiment_dataset.get_test_set(), self.sentiment_dataset)
+        self.sentences[RARE_WORDS] = [sentence for i, sentence in enumerate(self.sentiment_dataset.get_test_set()) if i in rare_words_indices]
+
+        negated_polarity_indices = data_loader.get_negated_polarity_examples(self.sentiment_dataset.get_test_set())
+        self.sentences[NEGATED_POLARITY] = [sentence for i, sentence in enumerate(self.sentiment_dataset.get_test_set()) if i in negated_polarity_indices]
+
         # map data splits to sentence input preperation functions
         words_list = list(self.sentiment_dataset.get_word_counts().keys())
         if data_type == ONEHOT_AVERAGE:
@@ -246,13 +269,13 @@ class DataManager():
             self.sent_func = sentence_to_embedding
 
             self.sent_func_kwargs = {"seq_len": SEQ_LEN,
-                                     "word_to_vec": create_or_load_slim_w2v(words_list),
+                                     "word_to_vec": create_or_load_slim_w2v(words_list, cache_w2v=True),
                                      "embedding_dim": embedding_dim
                                      }
         elif data_type == W2V_AVERAGE:
             self.sent_func = get_w2v_average
             words_list = list(self.sentiment_dataset.get_word_counts().keys())
-            self.sent_func_kwargs = {"word_to_vec": create_or_load_slim_w2v(words_list),
+            self.sent_func_kwargs = {"word_to_vec": create_or_load_slim_w2v(words_list, cache_w2v=True),
                                      "embedding_dim": embedding_dim
                                      }
         else:
@@ -399,7 +422,7 @@ def get_predictions_for_data(model, data_iter):
     return np.array(res)
 
 
-def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
+def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=LOG_LINEAR_PATH):
     """
     Runs the full training procedure for the given model. The optimization should be done using the Adam
     optimizer with all parameters but learning rate and weight decay set to default.
@@ -408,6 +431,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param n_epochs: number of times to go over the whole training set
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
+    :param model_path: model path
     """
     train_loss = []
     train_acc = []
@@ -418,12 +442,12 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     criterion = nn.BCEWithLogitsLoss()
 
     for epoch in range(n_epochs):
-        model_path = LOG_LINEAR_PATH + f"{epoch}"
+        final_path = model_path + f"{epoch}"
         if not LOAD_MODEL:
             train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
-            save_model(model, model_path, epoch, optimizer)
+            save_model(model, final_path, epoch, optimizer)
         else:
-            model, optimizer, epoch = load(model, model_path, optimizer)
+            model, optimizer, epoch = load(model, final_path, optimizer)
 
         #train set eval
         loss, acc = evaluate(model, data_manager.get_torch_iterator(TRAIN), criterion)
@@ -443,8 +467,8 @@ def plot_log_linear_graphs(x_axis, y_axis1, y_axis2, x_label="", y_label="", tit
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
-    plt.show()
     plt.savefig(png_name)
+    plt.show()
     plt.clf()
 
 def train_log_linear_with_one_hot():
@@ -465,11 +489,31 @@ def train_log_linear_with_one_hot():
     plot_log_linear_graphs(epochs, train_acc, validation_acc,
                                "Number of epochs", "Accuracy", "Train & Validation Accuracy", "train_validation_acc.png")
 
+    # results for test set and special subsets
+    criterion = nn.BCEWithLogitsLoss()
+    data_iterator = data_manager.get_torch_iterator(TEST)
+    test_loss, test_acc = evaluate(log_linear, data_iterator, criterion)
+    print(f"LOG LINEAR | test loss: {test_loss}")
+    print(f"LOG LINEAR | test accuracy: {test_acc}")
+
+    rare_iterator = data_manager.get_torch_iterator(RARE_WORDS)
+    rare_loss, rare_acc = evaluate(log_linear, rare_iterator, criterion)
+    print(f"LOG LINEAR | test rare words loss: {rare_loss}")
+    print(f"LOG LINEAR | test rare words accuracy: {rare_acc}")
+
+    negated_iterator = data_manager.get_torch_iterator(NEGATED_POLARITY)
+    negated_loss, negated_acc = evaluate(log_linear, negated_iterator, criterion)
+    print(f"LOG LINEAR | test negated polarity loss: {negated_loss}")
+    print(f"LOG LINEAR | test negated polarity accuracy: {negated_acc}")
+
+
+
     #todo del those lines
-    print(f"train loss:\n {train_loss}")
-    print(f"train accuracy:\n {train_acc}")
-    print(f"validation loss:\n {validation_loss}")
-    print(f"validation accuracy:\n {validation_acc}")
+
+    # print(f"train loss:\n {train_loss}")
+    # print(f"train accuracy:\n {train_acc}")
+    # print(f"validation loss:\n {validation_loss}")
+    # print(f"validation accuracy:\n {validation_acc}")
 
 
 def train_log_linear_with_w2v():
@@ -477,7 +521,36 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
-    return
+    device = get_available_device()
+    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=LOG_LINEAR_BATCH_SIZE, embedding_dim=W2V_EMBEDDING_DIM)
+    w2v_model = LogLinear(data_manager.get_input_shape()[0]).to(device)
+
+    train_loss, train_acc, validation_loss, validation_acc = \
+        train_model(w2v_model, data_manager, EPOCH_NUM, LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY, model_path=W2V_PATH)
+
+    epochs = [i for i in range(EPOCH_NUM)]
+    plot_log_linear_graphs(epochs, train_loss, validation_loss,
+                           "Number of epochs", "Loss", "Train & Validation Loss", "LL_train_validation_loss.png")
+
+    plot_log_linear_graphs(epochs, train_acc, validation_acc,
+                           "Number of epochs", "Accuracy", "Train & Validation Accuracy", "LL_train_validation_acc.png")
+
+    # results for test set and special subsets
+    criterion = nn.BCEWithLogitsLoss()
+    data_iterator = data_manager.get_torch_iterator(TEST)
+    test_loss, test_acc = evaluate(w2v_model, data_iterator, criterion)
+    print(f"W2V MODEL | test loss: {test_loss}")
+    print(f"W2V MODEL | test accuracy: {test_acc}")
+
+    rare_iterator = data_manager.get_torch_iterator(RARE_WORDS)
+    rare_loss, rare_acc = evaluate(w2v_model, rare_iterator, criterion)
+    print(f"W2V MODEL | test rare words loss: {rare_loss}")
+    print(f"W2V MODEL | test rare words accuracy: {rare_acc}")
+
+    negated_iterator = data_manager.get_torch_iterator(NEGATED_POLARITY)
+    negated_loss, negated_acc = evaluate(w2v_model, negated_iterator, criterion)
+    print(f"W2V MODEL | test negated polarity loss: {negated_loss}")
+    print(f"W2V MODEL | test negated polarity accuracy: {negated_acc}")
 
 
 def train_lstm_with_w2v():
@@ -489,5 +562,5 @@ def train_lstm_with_w2v():
 
 if __name__ == '__main__':
     train_log_linear_with_one_hot()
-    # train_log_linear_with_w2v()
+    train_log_linear_with_w2v()
     # train_lstm_with_w2v()
