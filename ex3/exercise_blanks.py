@@ -23,10 +23,13 @@ LOG_LINEAR_WIGHT_DECAY = 0.001
 ONEHOT_AVERAGE = "onehot_average"
 W2V_AVERAGE = "w2v_average"
 W2V_SEQUENCE = "w2v_sequence"
+LOG_LINEAR_PATH = "log_linear.model.epoch"
 
 TRAIN = "train"
 VAL = "val"
 TEST = "test"
+
+LOAD_MODEL = False
 
 
 # ------------------------------------------ Helper methods and classes --------------------------
@@ -87,7 +90,7 @@ def load_word2vec():
     """
     import gensim.downloader as api
     wv_from_bin = api.load("word2vec-google-news-300")
-    vocab = list(wv_from_bin.vocab.keys())
+    vocab = list(wv_from_bin.vocab.keys()) #todo change vocab to key_to_index ?
     print(wv_from_bin.vocab[vocab[0]])
     print("Loaded vocab size %i" % len(vocab))
     return wv_from_bin
@@ -396,8 +399,6 @@ def get_predictions_for_data(model, data_iter):
     return np.array(res)
 
 
-
-
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     """
     Runs the full training procedure for the given model. The optimization should be done using the Adam
@@ -417,7 +418,13 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     criterion = nn.BCEWithLogitsLoss()
 
     for epoch in range(n_epochs):
-        train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
+        model_path = LOG_LINEAR_PATH + f"{epoch}"
+        if not LOAD_MODEL:
+            train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
+            save_model(model, model_path, epoch, optimizer)
+        else:
+            model, optimizer, epoch = load(model, model_path, optimizer)
+
         #train set eval
         loss, acc = evaluate(model, data_manager.get_torch_iterator(TRAIN), criterion)
         train_loss.append(loss)
@@ -430,7 +437,15 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
 
     return train_loss, train_acc, validation_loss, validation_acc
 
-
+def plot_log_linear_graphs(x_axis, y_axis1, y_axis2, x_label="", y_label="", title="", png_name="plot.png"):
+    plt.plot(x_axis, y_axis1, 'r')
+    plt.plot(x_axis, y_axis2, 'b')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.show()
+    plt.savefig(png_name)
+    plt.clf()
 
 def train_log_linear_with_one_hot():
     """
@@ -444,28 +459,17 @@ def train_log_linear_with_one_hot():
         train_model(log_linear, data_manager, EPOCH_NUM, LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY)
 
     epochs = [i for i in range(EPOCH_NUM)]
+    plot_log_linear_graphs(epochs, train_loss, validation_loss,
+                           "Number of epochs", "Loss", "Train & Validation Loss", "train_validation_loss.png")
 
-    plt.plot(epochs, train_loss, 'r')
-    plt.plot(epochs, validation_loss, 'b')
-    plt.xlabel("Number of epochs")
-    plt.ylabel("Loss")
-    plt.title("Train & Validation Loss")
-    plt.show()
-    plt.savefig('train_validation_loss.png')
-    plt.clf()
+    plot_log_linear_graphs(epochs, train_acc, validation_acc,
+                               "Number of epochs", "Accuracy", "Train & Validation Accuracy", "train_validation_acc.png")
 
-    plt.plot(epochs, train_acc, 'r')
-    plt.plot(epochs, validation_acc, 'b')
-    plt.xlabel("Number of epochs")
-    plt.ylabel("Accuracy")
-    plt.title("Train & Validation Accuracy")
-    plt.show()
-    plt.savefig('train_validation_loss.png')
-
-    #print(f"train loss:\n {train_loss}")
-    #print(f"train accuracy:\n {train_acc}")
-    #print(f"validation loss:\n {validation_loss}")
-    #print(f"validation accuracy:\n {validation_acc}")
+    #todo del those lines
+    print(f"train loss:\n {train_loss}")
+    print(f"train accuracy:\n {train_acc}")
+    print(f"validation loss:\n {validation_loss}")
+    print(f"validation accuracy:\n {validation_acc}")
 
 
 def train_log_linear_with_w2v():
