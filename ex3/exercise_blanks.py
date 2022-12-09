@@ -15,16 +15,25 @@ import matplotlib.pyplot as plt
 
 SEQ_LEN = 52
 W2V_EMBEDDING_DIM = 300
-EPOCH_NUM = 20
-LEARNING_RATE = 0.01
+LSTM_EMBEDDING_DIM = 300
+LOG_LINEAR_EPOCH_NUM = 20
+LOG_LINEAR_LEARNING_RATE = 0.01
 LOG_LINEAR_BATCH_SIZE = 64
 LOG_LINEAR_WIGHT_DECAY = 0.001
+LSTM_DIM = 100
+LSTM_LEARNING_RATE = 0.001
+LSTM_WIGHT_DECAY = 0.0001
+LSTM_DROPOUT = 0.5
+LSTM_BATCH_SIZE = 64
+LSTM_EPOCH_NUM = 4
+
 
 ONEHOT_AVERAGE = "onehot_average"
 W2V_AVERAGE = "w2v_average"
 W2V_SEQUENCE = "w2v_sequence"
 LOG_LINEAR_PATH = "log_linear_models/log_linear.model.epoch"
 W2V_PATH = "w2v_models/w2v.model.epoch"
+LSTM_PATH = "lstm_models/lstm.model.epoch"
 
 TRAIN = "train"
 VAL = "val"
@@ -140,9 +149,6 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     return (res / known_words_amount) if known_words_amount != 0 else res
 
 
-
-
-
 def get_one_hot(size, ind):
     """
     this method returns a one-hot vector of the given size, where the 1 is placed in the ind entry.
@@ -197,7 +203,24 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
-    return
+    res = []
+    leaves = sent.get_leaves()
+    words_amount = 0
+
+    while words_amount < seq_len and words_amount < len(leaves):
+        word = leaves[words_amount]
+        if word in word_to_vec:
+            word_vec = word_to_vec[word]
+        else:
+            word_vec = np.zeros(embedding_dim)
+        res.append(word_vec)
+        words_amount += 1
+
+    if words_amount < seq_len:
+        for i in range(seq_len - words_amount):
+            res.append(np.zeros(embedding_dim))
+
+    return np.array(res)
 
 
 class OnlineDataset(Dataset):
@@ -307,9 +330,6 @@ class DataManager():
         """
         return self.torch_datasets[TRAIN][0][0].shape
 
-
-
-
 # ------------------------------------ Models ----------------------------------------------------
 
 class LSTM(nn.Module):
@@ -317,13 +337,19 @@ class LSTM(nn.Module):
     An LSTM for sentiment analysis with architecture as described in the exercise description.
     """
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
-        return
+        super(LSTM, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.lstm_layer = nn.LSTM(embedding_dim, hidden_dim, n_layers, bidirectional=True)
+        self.dropout_layer = nn.Dropout(dropout)
+        self.hidden2tag_layer = nn.Linear(hidden_dim, 1)
 
     def forward(self, text):
-        return
+        output, (h_n, c_n) = self.lstm_layer(text)
+        hidden_layer_input = self.dropout_layer(h_n)
+        return self.hidden2tag_layer(hidden_layer_input)
 
     def predict(self, text):
-        return
+        return torch.sigmoid(self.forward(text))
 
 
 class LogLinear(nn.Module):
@@ -363,8 +389,6 @@ def binary_accuracy(preds, y):
     return ((y == preds).sum()) / number_of_examples
 
 
-
-
 def train_epoch(model, data_iterator, optimizer, criterion):
     """
     This method operates one epoch (pass over the whole train set) of training of the given model,
@@ -380,7 +404,6 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         loss_score = criterion(forward_res, label_batch) #todo make sure in the criterion we activate sigmoid
         loss_score.backward()
         optimizer.step()
-
 
 
 def evaluate(model, data_iterator, criterion):
@@ -402,7 +425,6 @@ def evaluate(model, data_iterator, criterion):
             avg_accuracy_arr.append(binary_accuracy(forward_res, label_batch))
 
     return np.mean(avg_loss_arr), np.mean(avg_accuracy_arr)
-
 
 
 def get_predictions_for_data(model, data_iter):
@@ -461,15 +483,18 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
 
     return train_loss, train_acc, validation_loss, validation_acc
 
+
 def plot_log_linear_graphs(x_axis, y_axis1, y_axis2, x_label="", y_label="", title="", png_name="plot.png"):
-    plt.plot(x_axis, y_axis1, 'r')
-    plt.plot(x_axis, y_axis2, 'b')
+    plt.plot(x_axis, y_axis1, 'r', label="loss")
+    plt.plot(x_axis, y_axis2, 'b', label="accuracy")
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
+    plt.legend()
     plt.savefig(png_name)
     plt.show()
     plt.clf()
+
 
 def train_log_linear_with_one_hot():
     """
@@ -480,9 +505,9 @@ def train_log_linear_with_one_hot():
     log_linear = LogLinear(data_manager.get_input_shape()[0]).to(device)
 
     train_loss, train_acc, validation_loss, validation_acc = \
-        train_model(log_linear, data_manager, EPOCH_NUM, LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY)
+        train_model(log_linear, data_manager, LOG_LINEAR_EPOCH_NUM, LOG_LINEAR_LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY)
 
-    epochs = [i for i in range(EPOCH_NUM)]
+    epochs = [i for i in range(LOG_LINEAR_EPOCH_NUM)]
     plot_log_linear_graphs(epochs, train_loss, validation_loss,
                            "Number of epochs", "Loss", "Train & Validation Loss", "train_validation_loss.png")
 
@@ -506,8 +531,6 @@ def train_log_linear_with_one_hot():
     print(f"LOG LINEAR | test negated polarity loss: {negated_loss}")
     print(f"LOG LINEAR | test negated polarity accuracy: {negated_acc}")
 
-
-
     #todo del those lines
 
     # print(f"train loss:\n {train_loss}")
@@ -526,9 +549,9 @@ def train_log_linear_with_w2v():
     w2v_model = LogLinear(data_manager.get_input_shape()[0]).to(device)
 
     train_loss, train_acc, validation_loss, validation_acc = \
-        train_model(w2v_model, data_manager, EPOCH_NUM, LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY, model_path=W2V_PATH)
+        train_model(w2v_model, data_manager, LOG_LINEAR_EPOCH_NUM, LOG_LINEAR_LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY, model_path=W2V_PATH)
 
-    epochs = [i for i in range(EPOCH_NUM)]
+    epochs = [i for i in range(LOG_LINEAR_EPOCH_NUM)]
     plot_log_linear_graphs(epochs, train_loss, validation_loss,
                            "Number of epochs", "Loss", "Train & Validation Loss", "LL_train_validation_loss.png")
 
@@ -557,10 +580,39 @@ def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
-    return
+    device = get_available_device()
+    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=LSTM_BATCH_SIZE, embedding_dim=LSTM_EMBEDDING_DIM)
+    lstm_model = LSTM(data_manager.get_input_shape()[0], LSTM_DIM, 1, LSTM_DROPOUT).to(device)
+
+    train_loss, train_acc, validation_loss, validation_acc = \
+        train_model(lstm_model, data_manager, LSTM_EPOCH_NUM, LSTM_LEARNING_RATE, LSTM_WIGHT_DECAY, model_path=LSTM_PATH)
+
+    epochs = [i for i in range(LSTM_EPOCH_NUM)]
+    plot_log_linear_graphs(epochs, train_loss, validation_loss,
+                           "Number of epochs", "Loss", "Train & Validation Loss", "LL_train_validation_loss.png")
+
+    plot_log_linear_graphs(epochs, train_acc, validation_acc,
+                           "Number of epochs", "Accuracy", "Train & Validation Accuracy", "LL_train_validation_acc.png")
+
+    # results for test set and special subsets
+    criterion = nn.BCEWithLogitsLoss()
+    data_iterator = data_manager.get_torch_iterator(TEST)
+    test_loss, test_acc = evaluate(lstm_model, data_iterator, criterion)
+    print(f"W2V MODEL | test loss: {test_loss}")
+    print(f"W2V MODEL | test accuracy: {test_acc}")
+
+    rare_iterator = data_manager.get_torch_iterator(RARE_WORDS)
+    rare_loss, rare_acc = evaluate(lstm_model, rare_iterator, criterion)
+    print(f"W2V MODEL | test rare words loss: {rare_loss}")
+    print(f"W2V MODEL | test rare words accuracy: {rare_acc}")
+
+    negated_iterator = data_manager.get_torch_iterator(NEGATED_POLARITY)
+    negated_loss, negated_acc = evaluate(lstm_model, negated_iterator, criterion)
+    print(f"W2V MODEL | test negated polarity loss: {negated_loss}")
+    print(f"W2V MODEL | test negated polarity accuracy: {negated_acc}")
 
 
 if __name__ == '__main__':
-    train_log_linear_with_one_hot()
-    train_log_linear_with_w2v()
-    # train_lstm_with_w2v()
+    # train_log_linear_with_one_hot()
+    # train_log_linear_with_w2v()
+    train_lstm_with_w2v()
