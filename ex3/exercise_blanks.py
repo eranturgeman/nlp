@@ -607,13 +607,13 @@ def train_lstm_with_w2v():
     criterion = nn.BCEWithLogitsLoss()
     data_iterator = data_manager.get_torch_iterator(TEST)
     test_loss, test_acc = evaluate(lstm_model, data_iterator, criterion)
-    print(f"W2V MODEL | test loss: {test_loss}")
-    print(f"W2V MODEL | test accuracy: {test_acc}")
+    print(f"LSTM MODEL | test loss: {test_loss}")
+    print(f"LSTM MODEL | test accuracy: {test_acc}")
 
     rare_iterator = data_manager.get_torch_iterator(RARE_WORDS)
     rare_loss, rare_acc = evaluate(lstm_model, rare_iterator, criterion)
-    print(f"W2V MODEL | test rare words loss: {rare_loss}")
-    print(f"W2V MODEL | test rare words accuracy: {rare_acc}")
+    print(f"LSTM MODEL | test rare words loss: {rare_loss}")
+    print(f"LSTM MODEL | test rare words accuracy: {rare_acc}")
 
     negated_iterator = data_manager.get_torch_iterator(NEGATED_POLARITY)
     negated_loss, negated_acc = evaluate(lstm_model, negated_iterator, criterion)
