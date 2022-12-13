@@ -405,6 +405,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
+    model.train()
     for embedding_batch, label_batch in data_iterator:
         forward_res = model.forward(embedding_batch.float()).reshape(-1)
         optimizer.zero_grad()
@@ -423,7 +424,7 @@ def evaluate(model, data_iterator, criterion):
     """
     avg_loss_arr = []
     avg_accuracy_arr = []
-
+    model.eval()
     with torch.no_grad():
         for embedding_batch, label_batch in data_iterator:
             forward_res = model.forward(embedding_batch.float()).reshape(-1)
@@ -470,6 +471,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
 
+    if not os.path.exists(model_path[:model_path.find('/')]):
+        os.mkdir(model_path[:model_path.find('/')])
     for epoch in range(n_epochs):
         print(f"entering epoch number {epoch}")
         final_path = model_path + f"{epoch}"
@@ -539,13 +542,6 @@ def train_log_linear_with_one_hot():
     negated_loss, negated_acc = evaluate(log_linear, negated_iterator, criterion)
     print(f"LOG LINEAR | test negated polarity loss: {negated_loss}")
     print(f"LOG LINEAR | test negated polarity accuracy: {negated_acc}")
-
-    #todo del those lines
-
-    # print(f"train loss:\n {train_loss}")
-    # print(f"train accuracy:\n {train_acc}")
-    # print(f"validation loss:\n {validation_loss}")
-    # print(f"validation accuracy:\n {validation_acc}")
 
 
 def train_log_linear_with_w2v():
@@ -617,8 +613,8 @@ def train_lstm_with_w2v():
 
     negated_iterator = data_manager.get_torch_iterator(NEGATED_POLARITY)
     negated_loss, negated_acc = evaluate(lstm_model, negated_iterator, criterion)
-    print(f"W2V MODEL | test negated polarity loss: {negated_loss}")
-    print(f"W2V MODEL | test negated polarity accuracy: {negated_acc}")
+    print(f"LSTM MODEL | test negated polarity loss: {negated_loss}")
+    print(f"LSTM MODEL | test negated polarity accuracy: {negated_acc}")
 
 
 if __name__ == '__main__':
