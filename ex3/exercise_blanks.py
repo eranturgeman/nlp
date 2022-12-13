@@ -169,17 +169,23 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    #todo MAYBE switch implementation for creating a single vector and not summing vectors like this implementation
+
+    # vocabulary_size = len(word_to_ind)
+    # res = np.zeros(vocabulary_size)
+    # leaves = sent.get_leaves()
+    # for leave in leaves:
+    #     assert len(leave.text) == 1 #todo DEL
+    #     word = leave.text[0]
+    #     res += get_one_hot(vocabulary_size, word_to_ind[word])
+    #
+    # return res / len(leaves)
 
     vocabulary_size = len(word_to_ind)
     res = np.zeros(vocabulary_size)
-
     leaves = sent.get_leaves()
     for leave in leaves:
-        assert len(leave.text) == 1 #todo DEL
-        word = leave.text[0]
-        res += get_one_hot(vocabulary_size, word_to_ind[word])
-
+        assert len(leave.text) == 1  # todo DEL
+        res[word_to_ind[leave.text[0]]] = 1
     return res / len(leaves)
 
 
@@ -464,8 +470,11 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
     criterion = nn.BCEWithLogitsLoss()
 
     for epoch in range(n_epochs):
+        print(f"entering epoch number {epoch}")
         final_path = model_path + f"{epoch}"
-        if not LOAD_MODEL:
+        #if not LOAD_MODEL: todo del
+        if not os.path.exists(final_path):
+            print(f"model number {epoch} trained") #todo del
             train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
             save_model(model, final_path, epoch, optimizer)
         else:
@@ -485,8 +494,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
 
 
 def plot_log_linear_graphs(x_axis, y_axis1, y_axis2, x_label="", y_label="", title="", png_name="plot.png"):
-    plt.plot(x_axis, y_axis1, 'r', label="loss")
-    plt.plot(x_axis, y_axis2, 'b', label="accuracy")
+    plt.plot(x_axis, y_axis1, 'r', label="train data")
+    plt.plot(x_axis, y_axis2, 'b', label="validation data")
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
