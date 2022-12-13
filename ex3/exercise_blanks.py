@@ -345,13 +345,14 @@ class LSTM(nn.Module):
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
         super(LSTM, self).__init__()
         self.hidden_dim = hidden_dim
-        self.lstm_layer = nn.LSTM(embedding_dim, hidden_dim, n_layers, bidirectional=True)
+        self.lstm_layer = nn.LSTM(embedding_dim, hidden_dim, n_layers, bidirectional=True, batch_first=True)
         self.dropout_layer = nn.Dropout(dropout)
-        self.hidden2tag_layer = nn.Linear(hidden_dim, 1)
+        self.hidden2tag_layer = nn.Linear(2 * hidden_dim, 1)
 
     def forward(self, text):
         output, (h_n, c_n) = self.lstm_layer(text)
-        hidden_layer_input = self.dropout_layer(h_n)
+        concatenated = torch.cat((h_n[0], h_n[1]), 1)
+        hidden_layer_input = self.dropout_layer(concatenated)
         return self.hidden2tag_layer(hidden_layer_input)
 
     def predict(self, text):
@@ -472,7 +473,6 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
     for epoch in range(n_epochs):
         print(f"entering epoch number {epoch}")
         final_path = model_path + f"{epoch}"
-        #if not LOAD_MODEL: todo del
         if not os.path.exists(final_path):
             print(f"model number {epoch} trained") #todo del
             train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
@@ -591,7 +591,7 @@ def train_lstm_with_w2v():
     """
     device = get_available_device()
     data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=LSTM_BATCH_SIZE, embedding_dim=LSTM_EMBEDDING_DIM)
-    lstm_model = LSTM(data_manager.get_input_shape()[0], LSTM_DIM, 1, LSTM_DROPOUT).to(device)
+    lstm_model = LSTM(LSTM_EMBEDDING_DIM, LSTM_DIM, 1, LSTM_DROPOUT).to(device)
 
     train_loss, train_acc, validation_loss, validation_acc = \
         train_model(lstm_model, data_manager, LSTM_EPOCH_NUM, LSTM_LEARNING_RATE, LSTM_WIGHT_DECAY, model_path=LSTM_PATH)
