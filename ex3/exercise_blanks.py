@@ -422,6 +422,7 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
+    #todo here since we use evaluate only for VAL and TEST sets, instead calling model.forward, call model.predict so we will have the sigmoid already
     avg_loss_arr = []
     avg_accuracy_arr = []
     model.eval()
@@ -479,11 +480,12 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
         if not os.path.exists(final_path):
             print(f"model number {epoch} trained") #todo del
             train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
+            #todo return from here the loss and acc insted calc it again later! the train epoch alreay calculates the loss and we can calculate acc
             save_model(model, final_path, epoch, optimizer)
         else:
             model, optimizer, epoch = load(model, final_path, optimizer)
 
-        #train set eval
+        #train set eval todo delete this, we can have this data from the train_epoch
         loss, acc = evaluate(model, data_manager.get_torch_iterator(TRAIN), criterion)
         train_loss.append(loss)
         train_acc.append(acc)
