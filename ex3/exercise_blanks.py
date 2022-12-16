@@ -1,4 +1,4 @@
-import torch #todo check on torch 1.3 version
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -102,7 +102,7 @@ def load_word2vec():
     """
     import gensim.downloader as api
     wv_from_bin = api.load("word2vec-google-news-300")
-    vocab = list(wv_from_bin.vocab.keys()) #todo change vocab to key_to_index ?
+    vocab = list(wv_from_bin.vocab.keys())
     print(wv_from_bin.vocab[vocab[0]])
     print("Loaded vocab size %i" % len(vocab))
     return wv_from_bin
@@ -140,9 +140,8 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     known_words_amount = 0
 
     for leave in leaves:
-        assert len(leave.text) == 1  # todo DEL
         word = leave.text[0]
-        if word in word_to_vec:  #todo check if should sum the zero-vecs for unknown words (and increase denomenator)
+        if word in word_to_vec:
             res += word_to_vec[word]
             known_words_amount += 1
 
@@ -169,22 +168,10 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-
-    # vocabulary_size = len(word_to_ind)
-    # res = np.zeros(vocabulary_size)
-    # leaves = sent.get_leaves()
-    # for leave in leaves:
-    #     assert len(leave.text) == 1 #todo DEL
-    #     word = leave.text[0]
-    #     res += get_one_hot(vocabulary_size, word_to_ind[word])
-    #
-    # return res / len(leaves)
-
     vocabulary_size = len(word_to_ind)
     res = np.zeros(vocabulary_size)
     leaves = sent.get_leaves()
     for leave in leaves:
-        assert len(leave.text) == 1  # todo DEL
         res[word_to_ind[leave.text[0]]] += 1
     return res / len(leaves)
 
@@ -210,11 +197,11 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
     res = []
-    leaves = sent.get_leaves()
+    sentence_text = sent.text
     words_amount = 0
 
-    while words_amount < seq_len and words_amount < len(leaves):
-        word = leaves[words_amount]
+    while words_amount < seq_len and words_amount < len(sentence_text):
+        word = sentence_text[words_amount]
         if word in word_to_vec:
             word_vec = word_to_vec[word]
         else:
@@ -283,9 +270,9 @@ class DataManager():
         self.sentences[VAL] = self.sentiment_dataset.get_validation_set()
         self.sentences[TEST] = self.sentiment_dataset.get_test_set()
 
+        # adding rare words and negated polarity words
         rare_words_indices = data_loader.get_rare_words_examples(self.sentiment_dataset.get_test_set(), self.sentiment_dataset)
         self.sentences[RARE_WORDS] = [sentence for i, sentence in enumerate(self.sentiment_dataset.get_test_set()) if i in rare_words_indices]
-
         negated_polarity_indices = data_loader.get_negated_polarity_examples(self.sentiment_dataset.get_test_set())
         self.sentences[NEGATED_POLARITY] = [sentence for i, sentence in enumerate(self.sentiment_dataset.get_test_set()) if i in negated_polarity_indices]
 
@@ -345,15 +332,15 @@ class LSTM(nn.Module):
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
         super(LSTM, self).__init__()
         self.hidden_dim = hidden_dim
-        self.lstm_layer = nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers, bidirectional=True, batch_first=True)
-        self.dropout_layer = nn.Dropout(dropout)
+        self.lstm_layer = nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers, bidirectional=True, batch_first=True, dropout=dropout)
+        # self.dropout_layer = nn.Dropout(dropout)
         self.linear = nn.Linear(2 * hidden_dim, 1)
 
     def forward(self, text):
         output, (h_n, c_n) = self.lstm_layer(text)
         concatenated = torch.cat((h_n[0], h_n[1]), dim=1)
-        hidden_layer_input = self.dropout_layer(concatenated)
-        return self.linear(hidden_layer_input)
+        # hidden_layer_input = self.dropout_layer(concatenated)
+        return self.linear(concatenated)
 
     def predict(self, text):
         return torch.sigmoid(self.forward(text))
@@ -388,9 +375,7 @@ def binary_accuracy(preds, y):
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
     # assume preds are already rounded to 0 or 1
-
     number_of_examples = y.shape[0]
-    #todo check what should 0.5 be rounded to- up or down?
     y = torch.round(y)
     preds = torch.round(torch.sigmoid(preds))
     return ((y == preds).sum()) / number_of_examples
@@ -411,7 +396,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     for embedding_batch, label_batch in data_iterator:
         forward_res = model.forward(embedding_batch.float()).reshape(-1)
         optimizer.zero_grad()
-        loss_score = criterion(forward_res, label_batch) #todo make sure in the criterion we activate sigmoid
+        loss_score = criterion(forward_res, label_batch)
         avg_loss_arr.append(loss_score.item())
         avg_accuracy_arr.append(binary_accuracy(forward_res, label_batch))
         loss_score.backward()
@@ -443,7 +428,6 @@ def evaluate(model, data_iterator, criterion):
 
 def get_predictions_for_data(model, data_iter):
     """
-
     This function should iterate over all batches of examples from data_iter and return all of the models
     predictions as a numpy ndarray or torch tensor (or list if you prefer). the prediction should be in the
     same order of the examples returned by data_iter.
@@ -477,21 +461,11 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
 
-    # if not os.path.exists(model_path[:model_path.find('/')]):
-    #     os.mkdir(model_path[:model_path.find('/')])
+
     for epoch in range(n_epochs):
-        print(f"entering epoch number {epoch}")
-        # final_path = model_path + f"{epoch}"
-        # if not os.path.exists(final_path):
-        #     print(f"model number {epoch} trained") #todo del
-        loss_avg, acc_avg = train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion) #take one indent forward
+        loss_avg, acc_avg = train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion) #take one indent forward is saving models
         train_loss.append(loss_avg)
         train_acc.append(acc_avg)
-            #todo return from here the loss and acc insted calc it again later! the train epoch alreay calculates the loss and we can calculate acc
-
-            # save_model(model, final_path, epoch, optimizer)
-        # else:
-        #     model, optimizer, epoch = load(model, final_path, optimizer)
 
         #validation set eval
         loss, acc = evaluate(model, data_manager.get_torch_iterator(VAL), criterion)
@@ -502,8 +476,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
 
 
 def plot_graphs(x_axis, y_axis1, y_axis2, x_label="", y_label="", title="", png_name="plot.png"):
-    plt.plot(x_axis, y_axis1, 'r', label="train data")
-    plt.plot(x_axis, y_axis2, 'b', label="validation data")
+    plt.plot(x_axis, y_axis1, 'r', label="train")
+    plt.plot(x_axis, y_axis2, 'b', label="validation")
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
@@ -591,7 +565,7 @@ def train_lstm_with_w2v():
     Here comes your code for training and evaluation of the LSTM model.
     """
     device = get_available_device()
-    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=LSTM_BATCH_SIZE, embedding_dim=LSTM_EMBEDDING_DIM)
+    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=LSTM_BATCH_SIZE, embedding_dim= LSTM_EMBEDDING_DIM)
     lstm_model = LSTM(LSTM_EMBEDDING_DIM, LSTM_DIM, 1, LSTM_DROPOUT).to(device)
 
     train_loss, train_acc, validation_loss, validation_acc = \
