@@ -345,15 +345,15 @@ class LSTM(nn.Module):
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
         super(LSTM, self).__init__()
         self.hidden_dim = hidden_dim
-        self.lstm_layer = nn.LSTM(embedding_dim, hidden_dim, n_layers, bidirectional=True, batch_first=True)
+        self.lstm_layer = nn.LSTM(embedding_dim, hidden_dim, num_layers=n_layers, bidirectional=True, batch_first=True)
         self.dropout_layer = nn.Dropout(dropout)
-        self.hidden2tag_layer = nn.Linear(2 * hidden_dim, 1)
+        self.linear = nn.Linear(2 * hidden_dim, 1)
 
     def forward(self, text):
         output, (h_n, c_n) = self.lstm_layer(text)
-        concatenated = torch.cat((h_n[0], h_n[1]), 1)
+        concatenated = torch.cat((h_n[0], h_n[1]), dim=1)
         hidden_layer_input = self.dropout_layer(concatenated)
-        return self.hidden2tag_layer(hidden_layer_input)
+        return self.linear(hidden_layer_input)
 
     def predict(self, text):
         return torch.sigmoid(self.forward(text))
@@ -391,8 +391,8 @@ def binary_accuracy(preds, y):
 
     number_of_examples = y.shape[0]
     #todo check what should 0.5 be rounded to- up or down?
-    y = np.around(y)
-    preds = np.around(preds)
+    y = torch.round(y)
+    preds = torch.round(torch.sigmoid(preds))
     return ((y == preds).sum()) / number_of_examples
 
 
@@ -428,14 +428,13 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    #todo here since we use evaluate only for VAL and TEST sets, instead calling model.forward, call model.predict so we will have the sigmoid already
     avg_loss_arr = []
     avg_accuracy_arr = []
     model.eval()
     with torch.no_grad():
         for embedding_batch, label_batch in data_iterator:
             forward_res = model.forward(embedding_batch.float()).reshape(-1)
-            loss_score = criterion(forward_res, label_batch) #todo make sure in the criterion we activate sigmoid
+            loss_score = criterion(forward_res, label_batch)
             avg_loss_arr.append(loss_score.item())
             avg_accuracy_arr.append(binary_accuracy(forward_res, label_batch))
 
@@ -454,7 +453,7 @@ def get_predictions_for_data(model, data_iter):
     """
     res = []
     for embedding_batch, _ in data_iter:
-        res.extend(model.predict(embedding_batch))
+        res.append(model.predict(embedding_batch))
 
     return np.array(res)
 
@@ -478,23 +477,21 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.BCEWithLogitsLoss()
 
-    if not os.path.exists(model_path[:model_path.find('/')]):
-        os.mkdir(model_path[:model_path.find('/')])
+    # if not os.path.exists(model_path[:model_path.find('/')]):
+    #     os.mkdir(model_path[:model_path.find('/')])
     for epoch in range(n_epochs):
         print(f"entering epoch number {epoch}")
-        final_path = model_path + f"{epoch}"
-        if not os.path.exists(final_path):
-            print(f"model number {epoch} trained") #todo del
-            loss_avg, acc_avg = train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
+        # final_path = model_path + f"{epoch}"
+        # if not os.path.exists(final_path):
+        #     print(f"model number {epoch} trained") #todo del
+        loss_avg, acc_avg = train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion) #take one indent forward
+        train_loss.append(loss_avg)
+        train_acc.append(acc_avg)
             #todo return from here the loss and acc insted calc it again later! the train epoch alreay calculates the loss and we can calculate acc
-            save_model(model, final_path, epoch, optimizer)
-        else:
-            model, optimizer, epoch = load(model, final_path, optimizer)
 
-        #train set eval todo delete this, we can have this data from the train_epoch
-        loss, acc = evaluate(model, data_manager.get_torch_iterator(TRAIN), criterion)
-        train_loss.append(loss)
-        train_acc.append(acc)
+            # save_model(model, final_path, epoch, optimizer)
+        # else:
+        #     model, optimizer, epoch = load(model, final_path, optimizer)
 
         #validation set eval
         loss, acc = evaluate(model, data_manager.get_torch_iterator(VAL), criterion)
@@ -504,7 +501,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
     return train_loss, train_acc, validation_loss, validation_acc
 
 
-def plot_log_linear_graphs(x_axis, y_axis1, y_axis2, x_label="", y_label="", title="", png_name="plot.png"):
+def plot_graphs(x_axis, y_axis1, y_axis2, x_label="", y_label="", title="", png_name="plot.png"):
     plt.plot(x_axis, y_axis1, 'r', label="train data")
     plt.plot(x_axis, y_axis2, 'b', label="validation data")
     plt.xlabel(x_label)
@@ -528,11 +525,11 @@ def train_log_linear_with_one_hot():
         train_model(log_linear, data_manager, LOG_LINEAR_EPOCH_NUM, LOG_LINEAR_LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY)
 
     epochs = [i for i in range(LOG_LINEAR_EPOCH_NUM)]
-    plot_log_linear_graphs(epochs, train_loss, validation_loss,
-                           "Number of epochs", "Loss", "Train & Validation Loss", "train_validation_loss.png")
+    plot_graphs(epochs, train_loss, validation_loss,
+                           "Number of epochs", "Loss", "LL Train & Validation Loss", "LL_train_validation_loss.png")
 
-    plot_log_linear_graphs(epochs, train_acc, validation_acc,
-                               "Number of epochs", "Accuracy", "Train & Validation Accuracy", "train_validation_acc.png")
+    plot_graphs(epochs, train_acc, validation_acc,
+                               "Number of epochs", "Accuracy", "LL Train & Validation Accuracy", "LL_train_validation_acc.png")
 
     # results for test set and special subsets
     criterion = nn.BCEWithLogitsLoss()
@@ -565,11 +562,11 @@ def train_log_linear_with_w2v():
         train_model(w2v_model, data_manager, LOG_LINEAR_EPOCH_NUM, LOG_LINEAR_LEARNING_RATE, LOG_LINEAR_WIGHT_DECAY, model_path=W2V_PATH)
 
     epochs = [i for i in range(LOG_LINEAR_EPOCH_NUM)]
-    plot_log_linear_graphs(epochs, train_loss, validation_loss,
-                           "Number of epochs", "Loss", "Train & Validation Loss", "LL_train_validation_loss.png")
+    plot_graphs(epochs, train_loss, validation_loss,
+                           "Number of epochs", "Loss", "W2V Train & Validation Loss", "W2V_train_validation_loss.png")
 
-    plot_log_linear_graphs(epochs, train_acc, validation_acc,
-                           "Number of epochs", "Accuracy", "Train & Validation Accuracy", "LL_train_validation_acc.png")
+    plot_graphs(epochs, train_acc, validation_acc,
+                           "Number of epochs", "Accuracy", "W2V Train & Validation Accuracy", "W2V_train_validation_acc.png")
 
     # results for test set and special subsets
     criterion = nn.BCEWithLogitsLoss()
@@ -601,11 +598,11 @@ def train_lstm_with_w2v():
         train_model(lstm_model, data_manager, LSTM_EPOCH_NUM, LSTM_LEARNING_RATE, LSTM_WIGHT_DECAY, model_path=LSTM_PATH)
 
     epochs = [i for i in range(LSTM_EPOCH_NUM)]
-    plot_log_linear_graphs(epochs, train_loss, validation_loss,
-                           "Number of epochs", "Loss", "Train & Validation Loss", "LL_train_validation_loss.png")
+    plot_graphs(epochs, train_loss, validation_loss,
+                           "Number of epochs", "Loss", "LSTM Train & Validation Loss", "LSTM_train_validation_loss.png")
 
-    plot_log_linear_graphs(epochs, train_acc, validation_acc,
-                           "Number of epochs", "Accuracy", "Train & Validation Accuracy", "LL_train_validation_acc.png")
+    plot_graphs(epochs, train_acc, validation_acc,
+                           "Number of epochs", "Accuracy", "LSTM Train & Validation Accuracy", "LSTM_train_validation_acc.png")
 
     # results for test set and special subsets
     criterion = nn.BCEWithLogitsLoss()
