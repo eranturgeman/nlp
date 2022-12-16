@@ -185,7 +185,7 @@ def average_one_hots(sent, word_to_ind):
     leaves = sent.get_leaves()
     for leave in leaves:
         assert len(leave.text) == 1  # todo DEL
-        res[word_to_ind[leave.text[0]]] = 1
+        res[word_to_ind[leave.text[0]]] += 1
     return res / len(leaves)
 
 
@@ -405,13 +405,19 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
+    avg_loss_arr = []
+    avg_accuracy_arr = []
     model.train()
     for embedding_batch, label_batch in data_iterator:
         forward_res = model.forward(embedding_batch.float()).reshape(-1)
         optimizer.zero_grad()
         loss_score = criterion(forward_res, label_batch) #todo make sure in the criterion we activate sigmoid
+        avg_loss_arr.append(loss_score.item())
+        avg_accuracy_arr.append(binary_accuracy(forward_res, label_batch))
         loss_score.backward()
         optimizer.step()
+
+    return np.mean(avg_loss_arr), np.mean(avg_accuracy_arr)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -479,7 +485,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0., model_path=L
         final_path = model_path + f"{epoch}"
         if not os.path.exists(final_path):
             print(f"model number {epoch} trained") #todo del
-            train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
+            loss_avg, acc_avg = train_epoch(model, data_manager.get_torch_iterator(TRAIN), optimizer, criterion)
             #todo return from here the loss and acc insted calc it again later! the train epoch alreay calculates the loss and we can calculate acc
             save_model(model, final_path, epoch, optimizer)
         else:
@@ -620,6 +626,6 @@ def train_lstm_with_w2v():
 
 
 if __name__ == '__main__':
-    # train_log_linear_with_one_hot()
-    # train_log_linear_with_w2v()
+    train_log_linear_with_one_hot()
+    train_log_linear_with_w2v()
     train_lstm_with_w2v()
