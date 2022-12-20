@@ -378,7 +378,7 @@ def binary_accuracy(preds, y):
     number_of_examples = y.shape[0]
     y = torch.round(y)
     preds = torch.round(torch.sigmoid(preds))
-    return ((y == preds).sum()) / number_of_examples
+    return ((y == preds).sum().float()) / number_of_examples
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
