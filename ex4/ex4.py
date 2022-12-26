@@ -1,15 +1,18 @@
 import itertools
 
+import collections
 import numpy as np
 import nltk
 from nltk.corpus import dependency_treebank
 from Chu_Liu_Edmonds_algorithm import min_spanning_arborescence_nx
 
+Arc = collections.namedtuple('Arc', ['head', 'tail', 'wight'])
 TRAIN_SET_SIZE = 0.9
 EPOCH_NUM = 2
 
 class MSTParser:
     def __init__(self, sentences):
+        sentences = sentences[:100]
         self.split_train_test(sentences)
         self.get_words_and_tags()
 
@@ -28,10 +31,11 @@ class MSTParser:
                 words.add(sent.nodes[node]['word'])
                 pos_tags.add(sent.nodes[node]['tag'])
 
+        words.remove(None)
         self.words = sorted(list(words))
         self.pos_tags = sorted(list(pos_tags))
 
-        self.words_mapping = {(a, b): i for (i, (a, b)) in enumerate(itertools.product(words, repeat=2))}
+        self.words_mapping = {(a, b): i for (i, (a, b)) in enumerate(itertools.product(self.words, repeat=2))}
         words_offset = len(self.words_mapping)
         self.pos_mapping = {(a, b): (i + words_offset) for (i, (a, b)) in enumerate(itertools.product(self.pos_tags, repeat=2))}
 
@@ -54,7 +58,7 @@ class MSTParser:
             word2_pos = sent.nodes[i + 1]['tag']
             pair_feat_vector = self.create_feature_vector(word1, word2, word1_pos, word2_pos)
             pair_score = np.dot(pair_feat_vector, w)
-            arcs.append((word1, word2, pair_score))
+            arcs.append(Arc(word1, word2, -pair_score)) #todo make sure the invert sign achives what we want
         return arcs
 
     def train(self):
@@ -75,15 +79,11 @@ class MSTParser:
                 mst = min_spanning_arborescence_nx(self.get_arcs(sent, w), None)
 
 
-
-
-
-
 def main():
     nltk.download('dependency_treebank')
     sentences = dependency_treebank.parsed_sents()
     mst_parser = MSTParser(sentences)
-
+    mst_parser.train()
 
 
 if __name__ == "__main__":
