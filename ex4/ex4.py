@@ -1,6 +1,5 @@
 import itertools
 import math
-
 import random
 import collections
 import numpy as np
@@ -20,6 +19,7 @@ class MSTParser:
         self.split_train_test(sentences)
         self.create_random_root_word(ROOT_WORD_LEN)
         self.get_words_and_tags()
+        self.weights = self.train()
 
     def split_train_test(self, sentences):
         n = len(sentences)
@@ -45,8 +45,6 @@ class MSTParser:
                 words.add(sent.nodes[node]['word'])
                 pos_tags.add(sent.nodes[node]['tag'])
 
-        assert None not in words
-        assert None not in pos_tags
         self.words = sorted(list(words))
         self.pos_tags = sorted(list(pos_tags))
 
@@ -89,8 +87,6 @@ class MSTParser:
 
         return result
 
-
-
     def get_arcs(self, sent, w):
         arcs = []
         for i in range(len(sent.nodes)):
@@ -117,7 +113,6 @@ class MSTParser:
         #update wights add to w_sum
         #normalize w_sum
 
-
         for r in range(EPOCH_NUM):
             k = 0  # todo del
             for sent in self.train_set:
@@ -132,13 +127,20 @@ class MSTParser:
 
         return w_sum / (EPOCH_NUM * len(self.train_set))
 
+    def evaluate(self):
+        for sent in self.test_set:
+            mst = min_spanning_arborescence_nx(self.get_arcs(sent, self.weights), None)
+            mst_feature_vector = self.create_feature_vector_from_mst(mst)
+            gold_standard_feature_vector = self.create_feature_for_gold_standard(sent)
+
 
 
 def main():
     nltk.download('dependency_treebank')
     sentences = dependency_treebank.parsed_sents()
-    mst_parser = MSTParser(sentences)
-    mst_parser.train()
+    mst_parser = MSTParser(sentences) # indludes model training
+    mst_parser.evaluate()
+
 
 
 if __name__ == "__main__":
