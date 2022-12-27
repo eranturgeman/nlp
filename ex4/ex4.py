@@ -45,12 +45,9 @@ class MSTParser:
                 words.add(sent.nodes[node]['word'])
                 pos_tags.add(sent.nodes[node]['tag'])
 
-        self.words = sorted(list(words))
-        self.pos_tags = sorted(list(pos_tags))
-
-        self.words_mapping = {(a, b): i for (i, (a, b)) in enumerate(itertools.product(self.words, repeat=2))}
+        self.words_mapping = {(a, b): i for (i, (a, b)) in enumerate(itertools.product(words, repeat=2))}
         words_offset = len(self.words_mapping)
-        self.pos_mapping = {(a, b): (i + words_offset) for (i, (a, b)) in enumerate(itertools.product(self.pos_tags, repeat=2))}
+        self.pos_mapping = {(a, b): (i + words_offset) for (i, (a, b)) in enumerate(itertools.product(pos_tags, repeat=2))}
 
         self.feature_vec_size = words_offset + len(self.pos_mapping)
 
