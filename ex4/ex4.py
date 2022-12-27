@@ -15,7 +15,7 @@ LEARNING_RATE = 1
 
 class MSTParser:
     def __init__(self, sentences):
-        sentences = sentences[:50] #todo delete
+        sentences = sentences[:500] #todo delete
         self.split_train_test(sentences)
         self.create_random_root_word(ROOT_WORD_LEN)
         self.get_words_and_tags()
@@ -57,8 +57,10 @@ class MSTParser:
     def create_feature_vector(self, first_word, second_word, first_pos, second_pos):
         result = np.zeros(self.feature_vec_size)
 
-        result[self.words_mapping[(first_word, second_word)]] += 1
-        result[self.pos_mapping[(first_pos, second_pos)]] += 1
+        if (first_word, second_word) in self.words_mapping:
+            result[self.words_mapping[(first_word, second_word)]] += 1
+        if (first_pos, second_pos) in self.pos_mapping:
+            result[self.pos_mapping[(first_pos, second_pos)]] += 1
 
         return result
 
@@ -92,9 +94,16 @@ class MSTParser:
         for i in range(len(sent.nodes)):
             word1 = sent.nodes[i]['word']
             word1_pos = sent.nodes[i]['tag']
+            if word1_pos == "TOP":
+                sent.nodes[i]['word'] = self.root_word
+                word1 = self.root_word
+
             for j in range(len(sent.nodes)):
                 word2 = sent.nodes[j]['word']
                 word2_pos = sent.nodes[j]['tag']
+                if j == i or word2_pos == "TOP":
+                    continue
+
                 pair_feat_vector = self.create_feature_vector(word1, word2, word1_pos, word2_pos)
                 pair_score = np.dot(pair_feat_vector, w)
                 arcs.append(Arc(word1, word2, -pair_score, word1_pos, word2_pos))  # todo make sure the invert sign achieves what we want
@@ -128,10 +137,21 @@ class MSTParser:
         return w_sum / (EPOCH_NUM * len(self.train_set))
 
     def evaluate(self):
+        accumulative_acc = 0
         for sent in self.test_set:
+            correct_arcs = 0
             mst = min_spanning_arborescence_nx(self.get_arcs(sent, self.weights), None)
-            mst_feature_vector = self.create_feature_vector_from_mst(mst)
-            gold_standard_feature_vector = self.create_feature_for_gold_standard(sent)
+            for node in sent.nodes:
+                checked_word = sent.nodes[node]['word']
+                if checked_word == self.root_word:
+                    continue
+                true_head = sent.nodes[node]['head']
+                predicted_head = mst[checked_word].head
+                if true_head == predicted_head:
+                    correct_arcs += 1
+            accumulative_acc += correct_arcs / (len(sent.nodes) - 1) # the -1 is for not counting the root which is not really a word in the sentence
+
+        return accumulative_acc / len(self.test_set)
 
 
 
@@ -139,7 +159,7 @@ def main():
     nltk.download('dependency_treebank')
     sentences = dependency_treebank.parsed_sents()
     mst_parser = MSTParser(sentences) # indludes model training
-    mst_parser.evaluate()
+    print(f"Accuracy for the model is: {mst_parser.evaluate()}")
 
 
 
