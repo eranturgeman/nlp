@@ -145,7 +145,7 @@ class MSTParser:
                 checked_word = sent.nodes[node]['word']
                 if checked_word == self.root_word:
                     continue
-                true_head = sent.nodes[node]['head']
+                true_head = sent.nodes[sent.nodes[node]['head']]['word']
                 predicted_head = mst[checked_word].head
                 if true_head == predicted_head:
                     correct_arcs += 1
