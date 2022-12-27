@@ -110,6 +110,21 @@ class MSTParser:
         return arcs
 
 
+    def update_weights(self, w, mst, sent):
+        for node in sent.nodes:
+            word = sent.nodes[node]['word']
+            pos = sent.nodes[node]['tag']
+            parent_idx = sent.nodes[node]['head']
+            if not parent_idx:
+                continue
+            parent_word = sent.nodes[parent_idx]['word']
+            parent_pos = sent.nodes[parent_idx]['tag']
+            w[self.words_mapping[(parent_word, word)]] += 1
+            w[self.pos_mapping[(parent_pos, pos)]] += 1
+
+        for arc in mst.values():
+            w[self.words_mapping[(arc.head, arc.tail)]] -= 1
+            w[self.pos_mapping[(arc.head_pos, arc.tail_pos)]] -= 1
     def train(self):
         w_sum = np.zeros(self.feature_vec_size)
         w = np.zeros(self.feature_vec_size)
@@ -127,10 +142,7 @@ class MSTParser:
             for sent in self.train_set:
                 print(f"epoch {r} sentence {k}") #todo del
                 mst = min_spanning_arborescence_nx(self.get_arcs(sent, w), None)
-                mst_feature_vector = self.create_feature_vector_from_mst(mst)
-                gold_standard_feature_vector = self.create_feature_for_gold_standard(sent)
-
-                w = w + (gold_standard_feature_vector - mst_feature_vector) #learning rate = 1
+                self.update_weights(w, mst, sent)
                 w_sum += w
                 k += 1 #todo del
 
