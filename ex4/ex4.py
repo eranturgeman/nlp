@@ -89,22 +89,28 @@ class MSTParser:
 
     def get_arcs(self, sent, w):
         arcs = []
-        for i in range(len(sent.nodes)):
-            word1 = sent.nodes[i]['word']
-            word1_pos = sent.nodes[i]['tag']
-            if word1_pos == "TOP":
-                sent.nodes[i]['word'] = self.root_word
-                word1 = self.root_word
-
-            for j in range(len(sent.nodes)):
+        n = len(sent.nodes)
+        for i in range(n):
+            for j in range(n):
+                word1 = sent.nodes[i]['word']
                 word2 = sent.nodes[j]['word']
+                word1_pos = sent.nodes[i]['tag']
                 word2_pos = sent.nodes[j]['tag']
+
+                if word1_pos == "TOP":
+                    sent.nodes[i]['word'] = self.root_word
+
                 if j == i or word2_pos == "TOP":
                     continue
 
-                pair_feat_vector = self.create_feature_vector(word1, word2, word1_pos, word2_pos)
-                pair_score = np.dot(pair_feat_vector, w)
-                arcs.append(Arc(word1, word2, -pair_score, word1_pos, word2_pos))  # todo make sure the invert sign achieves what we want
+                score = 0
+                if (word1, word2) in self.words_mapping:
+                    score += w[self.words_mapping[(word1, word2)]]
+                if (word1_pos, word2_pos) in self.pos_mapping:
+                    score += w[self.pos_mapping[(word1_pos, word2_pos)]]
+
+                arcs.append(Arc(word1, word2, -score, word1_pos, word2_pos))
+
         return arcs
 
     def update_weights(self, w, mst, sent):
