@@ -7,15 +7,17 @@ import nltk
 from nltk.corpus import dependency_treebank
 from Chu_Liu_Edmonds_algorithm import min_spanning_arborescence_nx
 
-Arc = collections.namedtuple('Arc', ['head', 'tail', 'weight', 'head_pos', 'tail_pos'])
+Arc = collections.namedtuple('Arc', ['head', 'tail', 'weight', 'head_pos', 'tail_pos', 'distance'])
 TRAIN_SET_SIZE = 0.9
 EPOCH_NUM = 2
 ROOT_WORD_LEN = 15
 LEARNING_RATE = 1
 ROOT_POS = "TOP"
+BONUS = 0 #put 1 to use bonus feature, else put 0
 
 class MSTParser:
     def __init__(self, sentences):
+        sentences = sentences[:250]
         self.sentences = sentences
         self.split_train_test(sentences)
         self.create_random_root_word(ROOT_WORD_LEN)
@@ -55,7 +57,7 @@ class MSTParser:
         words_offset = len(self.words_mapping)
         self.pos_mapping = {(a, b): (i + words_offset) for (i, (a, b)) in enumerate(itertools.product(pos_tags, repeat=2))}
 
-        self.feature_vec_size = words_offset + len(self.pos_mapping)
+        self.feature_vec_size = words_offset + len(self.pos_mapping) + BONUS
 
     def get_arcs(self, sent, w):
         arcs = []
@@ -77,7 +79,14 @@ class MSTParser:
 
                 #assuming all pairs of 2 words and 2 POS are in dicts (running on test set at the beginning)
                 score = w[self.words_mapping[(word1, word2)]] + w[self.pos_mapping[(word1_pos, word2_pos)]]
-                arcs.append(Arc(word1, word2, -score, word1_pos, word2_pos))
+
+                if BONUS:
+                    dist = abs(i - j)
+                    score += w[self.feature_vec_size - 1] * (1 / dist)
+                    arcs.append(Arc(word1, word2, -score, word1_pos, word2_pos, dist))
+                else:
+                    arcs.append(Arc(word1, word2, -score, word1_pos, word2_pos, 0))
+
 
         return arcs
 
@@ -93,10 +102,14 @@ class MSTParser:
             parent_pos = sent.nodes[parent_idx]['tag']
             w[self.words_mapping[(parent_word, word)]] += 1
             w[self.pos_mapping[(parent_pos, pos)]] += 1
+            if BONUS:
+                w[self.feature_vec_size - 1] += (1 / abs(parent_idx - node))
 
         for arc in predicted_tree.values():
             w[self.words_mapping[(arc.head, arc.tail)]] -= 1
             w[self.pos_mapping[(arc.head_pos, arc.tail_pos)]] -= 1
+            if BONUS:
+                w[self.feature_vec_size - 1] -= (1 / arc.distance)
 
     def train(self):
         #iterate NUM_EPOCHS
