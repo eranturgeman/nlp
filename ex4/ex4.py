@@ -12,11 +12,11 @@ TRAIN_SET_SIZE = 0.9
 EPOCH_NUM = 2
 ROOT_WORD_LEN = 15
 LEARNING_RATE = 1
+ROOT_POS = "TOP"
 
 class MSTParser:
     def __init__(self, sentences):
         self.sentences = sentences
-        sentences = sentences[:500] #todo delete
         self.split_train_test(sentences)
         self.create_random_root_word(ROOT_WORD_LEN)
         self.get_words_and_tags()
@@ -39,10 +39,15 @@ class MSTParser:
     def get_words_and_tags(self):
         words = set()
         pos_tags = set()
+        #adding root and root POS
+        words.add(self.root_word)
+        pos_tags.add(ROOT_POS)
+
         for sent in self.sentences:
             for node in sent.nodes:
-                if not sent.nodes[node]['word']:
-                    sent.nodes[node]['word'] = self.root_word
+                #todo check
+                if sent.nodes[node]['tag'] == ROOT_POS: #if we are at the ROOT node
+                    continue
                 words.add(sent.nodes[node]['word'])
                 pos_tags.add(sent.nodes[node]['tag'])
 
@@ -52,73 +57,37 @@ class MSTParser:
 
         self.feature_vec_size = words_offset + len(self.pos_mapping)
 
-    def create_feature_vector(self, first_word, second_word, first_pos, second_pos):
-        result = np.zeros(self.feature_vec_size)
-
-        if (first_word, second_word) in self.words_mapping:
-            result[self.words_mapping[(first_word, second_word)]] += 1
-        if (first_pos, second_pos) in self.pos_mapping:
-            result[self.pos_mapping[(first_pos, second_pos)]] += 1
-
-        return result
-
-    def create_feature_vector_from_mst(self, mst):
-        result = np.zeros(self.feature_vec_size)
-
-        for arc in mst.values():
-            result[self.words_mapping[(arc.head, arc.tail)]] += 1
-            result[self.pos_mapping[(arc.head_pos, arc.tail_pos)]] += 1
-
-        return result
-
-    def create_feature_for_gold_standard(self, sent):
-        result = np.zeros(self.feature_vec_size)
-
-        for node in sent.nodes:
-            word = sent.nodes[node]['word']
-            pos = sent.nodes[node]['tag']
-            parent_idx = sent.nodes[node]['head']
-            if not parent_idx:
-                continue
-            parent_word = sent.nodes[parent_idx]['word']
-            parent_pos = sent.nodes[parent_idx]['tag']
-            result[self.words_mapping[(parent_word, word)]] += 1
-            result[self.pos_mapping[(parent_pos, pos)]] += 1
-
-        return result
-
     def get_arcs(self, sent, w):
         arcs = []
         n = len(sent.nodes)
         for i in range(n):
             for j in range(n):
+                if j == i:
+                    continue
+
                 word1 = sent.nodes[i]['word']
                 word2 = sent.nodes[j]['word']
                 word1_pos = sent.nodes[i]['tag']
                 word2_pos = sent.nodes[j]['tag']
 
-                if word1_pos == "TOP":
-                    sent.nodes[i]['word'] = self.root_word
-
-                if j == i or word2_pos == "TOP":
+                if  word2_pos == ROOT_POS:
                     continue
+                if word1_pos == ROOT_POS:
+                    word1 = self.root_word
 
-                score = 0
-                if (word1, word2) in self.words_mapping:
-                    score += w[self.words_mapping[(word1, word2)]]
-                if (word1_pos, word2_pos) in self.pos_mapping:
-                    score += w[self.pos_mapping[(word1_pos, word2_pos)]]
-
+                #assuming all pairs of 2 words and 2 POS are in dicts (running on test set at the beginning)
+                score = w[self.words_mapping[(word1, word2)]] + w[self.pos_mapping[(word1_pos, word2_pos)]]
                 arcs.append(Arc(word1, word2, -score, word1_pos, word2_pos))
 
         return arcs
 
     def update_weights(self, w, predicted_tree, sent):
+        #TODO make sure we need to sub golden - predicted and not predicted - golden
         for node in sent.nodes:
             word = sent.nodes[node]['word']
             pos = sent.nodes[node]['tag']
             parent_idx = sent.nodes[node]['head']
-            if not parent_idx:
+            if not parent_idx: #if im the root and have no parent
                 continue
             parent_word = sent.nodes[parent_idx]['word']
             parent_pos = sent.nodes[parent_idx]['tag']
@@ -143,7 +112,7 @@ class MSTParser:
 
         for r in range(EPOCH_NUM):
             random.shuffle(self.train_set)
-            k = 0  # todo del
+            k = 0  #todo del
             for sent in self.train_set:
                 print(f"epoch {r} sentence {k}") #todo del
                 full_sent_graph = self.get_arcs(sent, w)
@@ -158,12 +127,14 @@ class MSTParser:
         accumulative_acc = 0
         for sent in self.test_set:
             correct_arcs = 0
-            mst = min_spanning_arborescence_nx(self.get_arcs(sent, self.weights), None)
+            full_sent_graph = self.get_arcs(sent, self.weights)
+            mst = min_spanning_arborescence_nx(full_sent_graph, None)
             for node in sent.nodes:
-                checked_word = sent.nodes[node]['word']
-                if checked_word == self.root_word:
+                parent_idx = sent.nodes[node]['head']
+                if not parent_idx:
                     continue
-                true_head = sent.nodes[sent.nodes[node]['head']]['word']
+                checked_word = sent.nodes[node]['word']
+                true_head = sent.nodes[parent_idx]['word']
                 predicted_head = mst[checked_word].head
                 if true_head == predicted_head:
                     correct_arcs += 1
