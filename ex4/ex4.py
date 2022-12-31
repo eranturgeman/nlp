@@ -15,6 +15,7 @@ LEARNING_RATE = 1
 
 class MSTParser:
     def __init__(self, sentences):
+        self.sentences = sentences
         sentences = sentences[:500] #todo delete
         self.split_train_test(sentences)
         self.create_random_root_word(ROOT_WORD_LEN)
@@ -111,25 +112,6 @@ class MSTParser:
                 arcs.append(Arc(word1, word2, -score, word1_pos, word2_pos))
 
         return arcs
-
-
-        # for i in range(len(sent.nodes)):
-        #     word1 = sent.nodes[i]['word']
-        #     word1_pos = sent.nodes[i]['tag']
-        #     if word1_pos == "TOP":
-        #         sent.nodes[i]['word'] = self.root_word
-        #         word1 = self.root_word
-        #
-        #     for j in range(len(sent.nodes)):
-        #         word2 = sent.nodes[j]['word']
-        #         word2_pos = sent.nodes[j]['tag']
-        #         if j == i or word2_pos == "TOP":
-        #             continue
-        #
-        #         pair_feat_vector = self.create_feature_vector(word1, word2, word1_pos, word2_pos)
-        #         pair_score = np.dot(pair_feat_vector, w)
-        #         arcs.append(Arc(word1, word2, -pair_score, word1_pos, word2_pos))  # todo make sure the invert sign achieves what we want
-        # return arcs
 
     def update_weights(self, w, mst, sent):
         for node in sent.nodes:
