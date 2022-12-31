@@ -113,7 +113,7 @@ class MSTParser:
 
         return arcs
 
-    def update_weights(self, w, mst, sent):
+    def update_weights(self, w, predicted_tree, sent):
         for node in sent.nodes:
             word = sent.nodes[node]['word']
             pos = sent.nodes[node]['tag']
@@ -125,13 +125,11 @@ class MSTParser:
             w[self.words_mapping[(parent_word, word)]] += 1
             w[self.pos_mapping[(parent_pos, pos)]] += 1
 
-        for arc in mst.values():
+        for arc in predicted_tree.values():
             w[self.words_mapping[(arc.head, arc.tail)]] -= 1
             w[self.pos_mapping[(arc.head_pos, arc.tail_pos)]] -= 1
-    def train(self):
-        w_sum = np.zeros(self.feature_vec_size)
-        w = np.zeros(self.feature_vec_size)
 
+    def train(self):
         #iterate NUM_EPOCHS
         #for each epoch iterate over all sentences
         #for each sentence iterate over all pairs of following words
@@ -140,12 +138,16 @@ class MSTParser:
         #update wights add to w_sum
         #normalize w_sum
 
+        w_sum = np.zeros(self.feature_vec_size)
+        w = np.zeros(self.feature_vec_size)
+
         for r in range(EPOCH_NUM):
             random.shuffle(self.train_set)
             k = 0  # todo del
             for sent in self.train_set:
                 print(f"epoch {r} sentence {k}") #todo del
-                mst = min_spanning_arborescence_nx(self.get_arcs(sent, w), None)
+                full_sent_graph = self.get_arcs(sent, w)
+                mst = min_spanning_arborescence_nx(full_sent_graph, None)
                 self.update_weights(w, mst, sent)
                 w_sum += w
                 k += 1 #todo del
@@ -165,10 +167,9 @@ class MSTParser:
                 predicted_head = mst[checked_word].head
                 if true_head == predicted_head:
                     correct_arcs += 1
-            accumulative_acc += correct_arcs / (len(sent.nodes) - 1) # the -1 is for not counting the root which is not really a word in the sentence
+            accumulative_acc += (correct_arcs / (len(sent.nodes) - 1)) # the -1 is for not counting the root which is not really a word in the sentence
 
         return accumulative_acc / len(self.test_set)
-
 
 
 def main():
