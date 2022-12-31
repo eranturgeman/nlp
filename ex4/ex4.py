@@ -38,7 +38,7 @@ class MSTParser:
     def get_words_and_tags(self):
         words = set()
         pos_tags = set()
-        for sent in self.train_set:
+        for sent in self.sentences:
             for node in sent.nodes:
                 if not sent.nodes[node]['word']:
                     sent.nodes[node]['word'] = self.root_word
@@ -159,6 +159,7 @@ class MSTParser:
         #normalize w_sum
 
         for r in range(EPOCH_NUM):
+            random.shuffle(self.train_set)
             k = 0  # todo del
             for sent in self.train_set:
                 print(f"epoch {r} sentence {k}") #todo del
